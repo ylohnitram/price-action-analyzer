@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# Nastavení Agg backend pro matplotlib - musí být před importem pyplot
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend pro lepší výkon
+
 from datetime import datetime, timedelta
 import os
 import numpy as np
@@ -389,11 +393,15 @@ Formát:
                 except ValueError:
                     continue
         
+        # Omezení počtu zón pro lepší přehlednost a výkon (max 5)
+        if len(zones) > 5:
+            zones = zones[:5]
+            
         return zones
 
-    def generate_chart(self, df, support_zones, resistance_zones, symbol, filename=None, days_to_show=2):
+    def generate_chart(self, df, support_zones, resistance_zones, symbol, filename=None, days_to_show=2, hours_to_show=None):
         """
-        Generuje svíčkový graf s naznačenými zónami a scénáři, omezený na definovaný počet dnů.
+        Generuje svíčkový graf s naznačenými zónami a scénáři, optimalizováno pro výkon.
         
         Args:
             df (pandas.DataFrame): DataFrame s OHLCV daty
@@ -402,104 +410,129 @@ Formát:
             symbol (str): Symbol obchodního páru
             filename (str, optional): Název výstupního souboru. Pokud None, vygeneruje automaticky.
             days_to_show (int): Počet posledních dnů k zobrazení (výchozí 2)
+            hours_to_show (int, optional): Počet posledních hodin k zobrazení (má přednost před days_to_show)
             
         Returns:
             str: Cesta k vygenerovanému souboru
         """
-        if not filename:
-            # Vytvoření adresáře pro grafy, pokud neexistuje
-            charts_dir = "charts"
-            if not os.path.exists(charts_dir):
-                os.makedirs(charts_dir)
+        # Vytvoření adresáře pro grafy, pokud neexistuje
+        charts_dir = "charts"
+        if not os.path.exists(charts_dir):
+            os.makedirs(charts_dir)
             
+        # Název souboru s časovou značkou
+        if not filename:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = os.path.join(charts_dir, f"{symbol}_{timestamp}.png")
         
-        # Omezení dat pouze na posledních N dnů
+        # Omezení dat pouze na posledních N hodin/dní
         end_date = df.index.max()
-        start_date = end_date - timedelta(days=days_to_show)
+        
+        if hours_to_show:
+            start_date = end_date - timedelta(hours=hours_to_show)
+            logger.info(f"Omezuji data na posledních {hours_to_show} hodin")
+        else:
+            start_date = end_date - timedelta(days=days_to_show)
+            logger.info(f"Omezuji data na posledních {days_to_show} dní")
         
         # Filtruje DataFrame na požadované časové období
         plot_data = df[df.index >= start_date].copy()
         
         # Pokud jsou data prázdná, použijte všechna dostupná data
         if len(plot_data) < 10:
-            logger.warning(f"Nedostatek dat pro posledních {days_to_show} dnů, používám všechna dostupná data.")
+            logger.warning(f"Nedostatek dat pro požadované časové období, používám všechna dostupná data.")
             plot_data = df.copy()
             
         logger.info(f"Generuji graf s {len(plot_data)} svíčkami od {plot_data.index.min()} do {plot_data.index.max()}")
         
-        # Příprava grafu
-        fig, axes = mpf.plot(
-            plot_data, 
-            type='candle', 
-            style='yahoo', 
-            title=f"{symbol} - Price Action Analysis",
-            ylabel='Price',
-            volume=True,
-            figsize=(10, 6),
-            returnfig=True,
-            warn_too_much_data=10000
-        )
+        # Omezení počtu zón pro lepší výkon
+        if len(support_zones) > 5:
+            support_zones = support_zones[:5]
+        if len(resistance_zones) > 5:
+            resistance_zones = resistance_zones[:5]
         
-        # Přidání supportních zón
-        ax = axes[0]
-        
-        # Rozsah dat pro vykreslení zón
-        date_range = (plot_data.index[-1] - plot_data.index[0])
-        date_extension = date_range * 0.05  # 5% navíc pro lepší vizualizaci
-        start_x = plot_data.index[0] - date_extension
-        width_x = date_range + (2 * date_extension)
-        
-        # Přidání support zón
-        for s_min, s_max in support_zones:
-            rect = plt.Rectangle(
-                (plot_data.index[0], s_min), 
-                date_range, 
-                s_max - s_min,
-                facecolor='green', 
-                alpha=0.3,
-                zorder=0
+        try:
+            # Příprava grafu - optimalizované nastavení pro lepší výkon
+            fig, axes = mpf.plot(
+                plot_data, 
+                type='candle', 
+                style='yahoo', 
+                title=f"{symbol} - Price Action Analysis",
+                ylabel='Price',
+                volume=False,  # Vypnutí objemu pro lepší výkon
+                figsize=(8, 4),  # Menší velikost pro rychlejší renderování
+                returnfig=True,
+                warn_too_much_data=10000,
+                tight_layout=True
             )
-            ax.add_patch(rect)
-        
-        # Přidání resistance zón
-        for r_min, r_max in resistance_zones:
-            rect = plt.Rectangle(
-                (plot_data.index[0], r_min), 
-                date_range, 
-                r_max - r_min,
-                facecolor='red', 
-                alpha=0.3,
-                zorder=0
-            )
-            ax.add_patch(rect)
-        
-        # Automaticky nastavit y-limity grafu tak, aby zahrnovaly všechny zóny
-        all_price_points = []
-        for zone in support_zones + resistance_zones:
-            all_price_points.extend(zone)
-        
-        # Přidej také min/max ceny z grafu
-        all_price_points.extend([plot_data['low'].min(), plot_data['high'].max()])
-        
-        if all_price_points:
-            min_value = min(all_price_points)
-            max_value = max(all_price_points)
-            # Přidáme margin pro lepší čitelnost
-            margin = (max_value - min_value) * 0.05
-            ax.set_ylim(min_value - margin, max_value + margin)
-        
-        # Přidáme vodoznak časového pásma
-        time_now = datetime.now().strftime("%Y-%m-%d %H:%M")
-        plt.figtext(0.02, 0.02, f"Generated: {time_now} UTC", fontsize=8)
-        
-        # Uložení grafu s vysokou kvalitou ale optimalizovanou velikostí
-        plt.tight_layout()
-        plt.savefig(filename, dpi=150, bbox_inches='tight', optimize=True)
-        plt.close(fig)
-        
-        return filename
+            
+            # Přidání supportních zón
+            ax = axes[0]
+            
+            # Přidání support zón (maximálně 5)
+            for s_min, s_max in support_zones:
+                rect = plt.Rectangle(
+                    (plot_data.index[0], s_min), 
+                    plot_data.index[-1] - plot_data.index[0], 
+                    s_max - s_min,
+                    facecolor='green', 
+                    alpha=0.3,
+                    zorder=0
+                )
+                ax.add_patch(rect)
+            
+            # Přidání resistance zón (maximálně 5)
+            for r_min, r_max in resistance_zones:
+                rect = plt.Rectangle(
+                    (plot_data.index[0], r_min), 
+                    plot_data.index[-1] - plot_data.index[0], 
+                    r_max - r_min,
+                    facecolor='red', 
+                    alpha=0.3,
+                    zorder=0
+                )
+                ax.add_patch(rect)
+            
+            # Automaticky nastavit y-limity grafu tak, aby zahrnuly všechny zóny
+            all_price_points = []
+            for zone in support_zones + resistance_zones:
+                all_price_points.extend(zone)
+            
+            # Přidej také min/max ceny z grafu
+            all_price_points.extend([plot_data['low'].min(), plot_data['high'].max()])
+            
+            if all_price_points:
+                min_value = min(all_price_points)
+                max_value = max(all_price_points)
+                # Přidáme menší margin pro lepší výkon
+                margin = (max_value - min_value) * 0.03
+                ax.set_ylim(min_value - margin, max_value + margin)
+            
+            # Přidáme jednoduchý vodoznak
+            time_now = datetime.now().strftime("%Y-%m-%d %H:%M")
+            plt.figtext(0.02, 0.02, f"Generated: {time_now}", fontsize=6)
+            
+            # Uložení grafu s nižší kvalitou ale vyšší rychlostí
+            plt.savefig(filename, dpi=100, bbox_inches='tight', optimize=True, transparent=False)
+            plt.close(fig)
+            
+            logger.info(f"Graf úspěšně vygenerován: {filename}")
+            return filename
+            
+        except Exception as e:
+            logger.error(f"Chyba při generování grafu: {str(e)}")
+            # Pokud selže, zkusíme vygenerovat extrémně jednoduchý graf
+            try:
+                plt.figure(figsize=(8, 4))
+                plt.plot(plot_data.index, plot_data['close'])
+                plt.title(f"{symbol} - Simple Price Chart")
+                plt.savefig(filename, dpi=80)
+                plt.close()
+                logger.info(f"Záložní jednoduchý graf vygenerován: {filename}")
+                return filename
+            except:
+                logger.error("Nepodařilo se vygenerovat ani záložní jednoduchý graf")
+                return None
 
     def process_data(self, klines_data):
         """
