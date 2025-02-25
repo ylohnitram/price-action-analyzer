@@ -60,6 +60,101 @@ class PriceActionAnalyzer:
         
         return patterns
 
+    def generate_intraday_analysis(self, symbol, dataframes):
+    """
+    Generuje intraday analýzu zaměřenou na kratší časové rámce.
+    
+    Args:
+        symbol (str): Obchodní symbol
+        dataframes (dict): Slovník s DataFrame pro různé časové rámce
+        
+    Returns:
+        str: Vygenerovaná intraday analýza
+    """
+    # Detekce patternů pro každý časový rámec
+    patterns_by_tf = {}
+    for tf, df in dataframes.items():
+        patterns_by_tf[tf] = self.detect_patterns(df)
+        
+    # Příprava dat pro prompt
+    timeframe_data = []
+    
+    # Seznam intraday timeframů ve správném pořadí - použití přesně specifikovaných timeframů
+    intraday_timeframes = ["4h", "30m", "5m"]
+    for tf in intraday_timeframes:
+        if tf in dataframes:
+            df = dataframes[tf]
+            # Nastavení počtu svíček na základě timeframe
+            num_candles = 7 if tf == '4h' else (10 if tf == '30m' else 15)
+            
+            tf_data = f"## Časový rámec: {tf}\n"
+            tf_data += f"Rozsah dat: {df.index[0]} až {df.index[-1]}\n"
+            tf_data += f"Počet svíček: {len(df)}\n"
+            
+            # Přidání posledních svíček
+            tf_data += f"Posledních {num_candles} svíček:\n"
+            tf_data += f"{df[['open','high','low','close','volume']].tail(num_candles).to_markdown()}\n\n"
+            
+            # Přidání posledních patternů (pokud existují)
+            patterns = patterns_by_tf[tf]
+            if patterns:
+                tf_data += f"Poslední patterny:\n"
+                patt_count = 5 if tf == '4h' else (7 if tf == '30m' else 10)
+                for pattern in patterns[-patt_count:]:
+                    tf_data += f"- {pattern[0]} na úrovni {pattern[2]:.2f}-{pattern[3]:.2f} ({pattern[1]})\n"
+            
+            timeframe_data.append(tf_data)
+        
+    # Sestavení promtu
+    prompt = f"""Jste profesionální intraday trader specializující se na price action. Analyzujte aktuální data pro intraday obchodování.
+
+Symbol: {symbol}
+
+# DATA PODLE ČASOVÝCH RÁMCŮ
+{''.join(timeframe_data)}
+
+# ZADÁNÍ ANALÝZY
+Vytvořte ucelenou intraday analýzu v češtině se zaměřením na:
+
+1. KRÁTKODOBÝ TREND A KONTEXT (4h)
+   - Aktuální struktura trhu a důležité úrovně
+   - 4h support/resistance zóny
+   - Klíčové objemové profily
+
+2. INTRADAY PŘÍLEŽITOSTI (30m)
+   - Struktura trhu (vyšší high/low nebo nižší high/low)
+   - Klíčové cenové úrovně v rámci dne
+   - Významné price action patterny
+   - Falešné průrazy
+
+3. SCALPING SETUPS (5m)
+   - Konkrétní krátkodobé obchodní setups
+   - Přesné vstupní úrovně
+   - Cílové úrovně a stop-loss pozice
+   - Oblasti kumulace objemu
+
+4. KONKRÉTNÍ DOPORUČENÍ
+   - 3-5 konkrétních intraday obchodních příležitostí
+   - Přesné vstupy, stopy a cíle
+   - Časové okno platnosti analýzy
+
+Formát:
+- Používejte Markdown formátování s nadpisy
+- Buďte konkrétní s cenovými úrovněmi
+- Žádné technické indikátory, pouze price action a volume
+- Časové razítko: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC"""
+
+    try:
+        response = self.client.chat.completions.create(
+            model="gpt-4-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=2500
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        raise Exception(f"Chyba při generování intraday analýzy: {str(e)}")
+
     def generate_multi_timeframe_analysis(self, symbol, dataframes):
         """
         Generuje multi-timeframe analýzu na základě dat z různých časových rámců.
