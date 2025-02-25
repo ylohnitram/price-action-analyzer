@@ -47,6 +47,12 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     
+    # Definice proměnných prostředí přímo na úrovni jobu
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    
     steps:
       - name: Checkout kódu
         uses: actions/checkout@v3
@@ -62,6 +68,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           
+      # Ověření proměnných prostředí
+      - name: Kontrola proměnných prostředí
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "CHYBA: OPENAI_API_KEY není nastaveno"
+            exit 1
+          fi
+          if [ -z "$TELEGRAM_TOKEN" ]; then
+            echo "CHYBA: TELEGRAM_TOKEN není nastaveno"
+            exit 1
+          fi
+          if [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "CHYBA: TELEGRAM_CHAT_ID není nastaveno"
+            exit 1
+          fi
+          echo "✅ Všechny potřebné proměnné prostředí jsou nastaveny"
+          
       - name: Určení typu analýzy
         id: analysis-type
         run: |
@@ -76,26 +99,18 @@ jobs:
             echo "type=${{ github.event.inputs.analysis_type }}" >> $GITHUB_OUTPUT
           fi
       
-      - name: Spuštění kompletní multi-timeframe analýzy
+      - name: Spuštění kompletní analýzy
         if: steps.analysis-type.outputs.type == 'complete'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Kompletní multi-timeframe analýza pro BTC
-          python main.py -s BTCUSDT --multi
+          # Kompletní analýza pro BTC
+          python main.py -s BTCUSDT --complete
           sleep 60
           
-          # Kompletní multi-timeframe analýza pro ETH
-          python main.py -s ETHUSDT --multi
+          # Kompletní analýza pro ETH
+          python main.py -s ETHUSDT --complete
       
       - name: Spuštění intraday analýzy
         if: steps.analysis-type.outputs.type == 'intraday'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           # Intraday analýza pro BTC
           python main.py -s BTCUSDT --intraday
@@ -106,15 +121,11 @@ jobs:
       
       - name: Spuštění single-timeframe analýzy
         if: steps.analysis-type.outputs.type == 'single'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python main.py -s ${{ github.event.inputs.symbol }} -i ${{ github.event.inputs.interval }} -d ${{ github.event.inputs.days }}
       
       - name: Artefakty - ukládání CSV
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: analysis-data
           path: PA_*.csv

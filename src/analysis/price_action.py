@@ -100,39 +100,32 @@ class PriceActionAnalyzer:
                 
                 timeframe_data.append(tf_data)
 
-        prompt = f"""Jste profesionální intraday trader specializující se na price action. Analyzujte aktuální data pro intraday obchodování.
+        prompt = f"""Jste profesionální day trader. Vytvořte stručnou intraday analýzu pro dnešní seanci.
+
 Symbol: {symbol}
-# DATA PODLE ČASOVÝCH RÁMCŮ
+# KLÍČOVÉ ÚROVNĚ
 {''.join(timeframe_data)}
+
 # ZADÁNÍ ANALÝZY
-Vytvořte ucelenou intraday analýzu v češtině se zaměřením na:
-1. KRÁTKODOBÝ TREND A KONTEXT (4h)
-- Aktuální struktura trhu a důležité úrovně
-- 4h support/resistance zóny
-- Klíčové objemové profily
+1. 🕵️♂️ 4H KONTEXT (max 3 body)
+- Trendový směr
+- Nejdůležitější support/resistance
 
-2. INTRADAY PŘÍLEŽITOSTI (30m)
-- Struktura trhu (vyšší high/low nebo nižší high/low)
-- Klíčové cenové úrovně v rámci dne
-- Významné price action patterny
-- Falešné průrazy
+2. 📈 30M SETUPY
+- 3 klíčové hladiny pro dnešek
+- Potenciální směr pohybu
+- Ideální vstupní zóny
 
-3. SCALPING SETUPS (5m)
-- Konkrétní krátkodobé obchodní setups
-- Přesné vstupní úrovně
-- Cílové úrovně a stop-loss pozice
-- Oblasti kumulace objemu
-
-4. KONKRÉTNÍ DOPORUČENÍ
-- 3-5 konkrétních intraday obchodních příležitostí
-- Přesné vstupy, stopy a cíle
-- Časové okno platnosti analýzy
+3. ⚡ 5M PŘÍLEŽITOSTI (pouze pokud kvalitní)
+- Konkrétní vstupní úrovně
+- Cíle a rizika
+- Časová relevance (dopoledne/odpoledne)
 
 Formát:
-- Používejte Markdown formátování s nadpisy
-- Buďte konkrétní s cenovými úrovněmi
-- Žádné technické indikátory, pouze price action a volume
-- Časové razítko: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC"""
+- Max 8 odrážek
+- Používejte bublinové emoji pro úrovně: 🔵-strong, 🟢-moderate, 🟡-weak
+- Žádný úvod/závěr
+- Časové okno: {datetime.now().strftime("%H:%M")}-{datetime.now().replace(hour=22, minute=0).strftime("%H:%M")}"""
 
         try:
             response = self.client.chat.completions.create(
@@ -182,33 +175,34 @@ Formát:
                 
                 timeframe_data.append(tf_data)
 
-        prompt = f"""Jste profesionální trader specializující se na čistou price action. Analyzujte OHLCV data pro více časových rámců.
+        prompt = f"""Jste senior trader specializující se na dlouhodobé investiční strategie. Analyzujte data s důrazem na vyšší časové rámce.
+
 Symbol: {symbol}
 # DATA PODLE ČASOVÝCH RÁMCŮ
 {''.join(timeframe_data)}
+
 # ZADÁNÍ ANALÝZY
-Vytvořte ucelenou multi-timeframe analýzu v češtině se zaměřením na:
-1. TRŽNÍ KONTEXT (dlouhodobý trend)
-- Analýza weekly a daily dat (1w, 1d)
-- Identifikace hlavních support/resistance zón
-- Dlouhodobý sentiment a pozice v tržním cyklu
+Vytvořte stručnou multi-timeframe analýzu v češtině se zaměřením na:
+## 1. DLOUHODOBÝ TREND (1W/1D)
+- Hlavní support/resistance zóny (min. 3 významné úrovně)
+- Fázová analýza trhu (akumulace/distribuce, trendové/nárazové pohyby)
+- Klíčové weekly/daily uzávěry
 
-2. STŘEDNĚDOBÝ POHLED (4h)
-- Struktura trhu (higher highs/lower lows nebo opačně)
-- Klíčové cenové úrovně
-- Objemový profil
-
-3. KRÁTKODOBÉ OBCHODNÍ PŘÍLEŽITOSTI (30m, 5m)
+## 2. STŘEDNĚDOBÝ KONTEXT (4H)
+- Pozice v rámci vyššího trendu
 - Významné cenové mezery (imbalance zones)
-- Silné zóny poptávky/nabídky
-- Falešné průrazy klíčových úrovní
-- Konkrétní obchodní příležitosti s přesnými vstupními úrovněmi
+- Objemové klastry
+
+## 3. KRÁTKODOBÉ SIGNÁLY (30m/5m) [POUZE POKUD RELEVANTNÍ]
+- Výrazné price action patterny
+- Likvidní úrovně pro vstupy
+- Rychlé obchodní příležitosti (max 2 pokud existují)
 
 Formát:
-- Používejte Markdown formátování včetně nadpisů (##, ###)
-- Konkrétní cenové úrovně z dat
-- Žádné technické indikátory, pouze price action a volume
-- Časové razítko: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC"""
+- Max 10 odrážek
+- Používejte emoji pro vizuální oddělení sekcí (🎯📉📈⚠️)
+- Žádné úvodní fráze, pouze fakta
+- Časové razítko: {datetime.now().strftime("%d.%m.%Y %H:%M")}"""
 
         try:
             response = self.client.chat.completions.create(

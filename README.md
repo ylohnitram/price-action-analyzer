@@ -1,16 +1,23 @@
-# Multi-Timeframe Price Action Analyzer
+[![Price Action Analysis](https://github.com/ylohnitram/price-action-analyzer/actions/workflows/analyze.yml/badge.svg)](https://github.com/ylohnitram/price-action-analyzer/actions/workflows/analyze.yml)
 
-Automatizovaný nástroj pro komplexní analýzu price action dat z Binance pomocí AI. Aplikace stahuje OHLCV data pro různé časové rámce, detekuje klíčové price action patterny a generuje podrobnou multi-timeframe analýzu, kterou odesílá do Telegram kanálu.
+# Price Action Analyzer
+
+Automatizovaný nástroj pro komplexní analýzu price action dat z Binance pomocí AI. Aplikace stahuje OHLCV data, detekuje klíčové price action patterny a generuje podrobnou analýzu pro různé obchodní strategie, kterou odesílá do Telegram kanálu.
 
 ## Funkce
 
 - Stahování OHLCV dat z Binance API
-- Multi-timeframe analýza přesně dle požadavků:
-  - Weekly data (1w) - období 1 roku
-  - Daily data (1d) - období 3 měsíců
-  - 4-hodinová data (4h) - období 1 měsíce
-  - 30-minutová data (30m) - období 1 týdne
-  - 5-minutová data (5m) - období 3 dnů
+- Dva typy analýz:
+  - **Kompletní analýza** - všechny časové rámce:
+    - Weekly data (1w) - období 1 roku
+    - Daily data (1d) - období 3 měsíců
+    - 4-hodinová data (4h) - období 1 měsíce
+    - 30-minutová data (30m) - období 1 týdne
+    - 5-minutová data (5m) - období 3 dnů
+  - **Intraday analýza** - zaměřená na krátkodobé obchodování:
+    - 4-hodinová data (4h) - období 1 měsíce (kontext)
+    - 30-minutová data (30m) - období 1 týdne
+    - 5-minutová data (5m) - období 3 dnů
 - Detekce price action patternů:
   - Cenové mezery (Fair Value Gaps)
   - Silné zóny (Order Blocks)
@@ -30,7 +37,7 @@ Automatizovaný nástroj pro komplexní analýzu price action dat z Binance pomo
 
 1. Naklonujte repozitář:
    ```bash
-   git clone https://github.com/ylohnitram/price-action-analyzer.git
+   git clone https://github.com/vase-uzivatelske-jmeno/price-action-analyzer.git
    cd price-action-analyzer
    ```
 
@@ -50,9 +57,14 @@ Automatizovaný nástroj pro komplexní analýzu price action dat z Binance pomo
 
 ### Lokální spuštění
 
-#### Multi-timeframe analýza (doporučeno)
+#### Kompletní analýza (všechny časové rámce)
 ```bash
-python main.py -s BTCUSDT --multi
+python main.py -s BTCUSDT --complete
+```
+
+#### Intraday analýza (pouze 4h, 30m, 5m)
+```bash
+python main.py -s BTCUSDT --intraday
 ```
 
 #### Single-timeframe analýza
@@ -62,7 +74,8 @@ python main.py -s BTCUSDT -i 30m -d 7
 
 Parametry:
 - `-s, --symbol`: Trading pár (např. BTCUSDT, ETHUSDT)
-- `--multi`: Použít multi-timeframe analýzu (stahuje data pro všechny časové rámce)
+- `--complete`: Použít kompletní analýzu (stahuje data pro všechny časové rámce)
+- `--intraday`: Použít intraday analýzu (stahuje data pouze pro 4h, 30m, 5m)
 - `-i, --interval`: Časový interval pro single-timeframe analýzu (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w)
 - `-d, --days`: Počet dní historie pro single-timeframe analýzu
 - `-v, --verbose`: Podrobnější logování
@@ -76,13 +89,15 @@ Parametry:
    - `TELEGRAM_TOKEN`
    - `TELEGRAM_CHAT_ID`
 
-3. Workflow se automaticky spustí podle nastaveného rozvrhu (každých 8 hodin)
+3. Workflow spouští dva typy analýz:
+   - Kompletní analýza: Každý pracovní den v 7:30 UTC
+   - Intraday analýza: Každé 2 hodiny během obchodního dne (8:30, 10:30, 12:30, 14:30, 16:30, 18:30 UTC)
 
 4. Pro manuální spuštění:
    - Přejděte na záložku "Actions"
-   - Vyberte workflow "Multi-Timeframe Price Action Analysis"
+   - Vyberte workflow "Price Action Analysis"
    - Klikněte na "Run workflow"
-   - Zadejte požadované parametry
+   - Vyberte typ analýzy (complete, intraday, single) a zadejte další požadované parametry
 
 ## Struktura projektu
 
@@ -107,10 +122,10 @@ price-action-analyzer/
 
 ## Příklad výstupu
 
-### Multi-Timeframe Analýza
+### Kompletní analýza
 
 ```
-**Multi-Timeframe Price Action Analýza BTCUSDT**
+**Kompletní Price Action Analýza BTCUSDT**
 
 ## Tržní kontext (Weekly/Daily)
 
@@ -157,6 +172,57 @@ price-action-analyzer/
    - Short: Pouze pod $63,700 s prudkým nárůstem objemu
    
 Čas analýzy: 2024-03-16 15:30 UTC
+```
+
+### Intraday analýza
+
+```
+**Intraday Price Action Analýza BTCUSDT**
+
+## KRÁTKODOBÝ TREND A KONTEXT (4h)
+
+- **Struktura trhu**: Cena se nachází v krátkodobém rostoucím trendu s vytvořením vyšších low/high
+- **Klíčové úrovně**:
+  - Support: $64,800-$65,000 (bývalá resistance, nyní support)
+  - Resistance: $66,400-$66,600 (významná zóna odmítnutí)
+- **Objemový profil**: Rostoucí objem při pohybu vzhůru, svědčí o síle trendu
+
+## INTRADAY PŘÍLEŽITOSTI (30m)
+
+- **Aktuální situace**: Konsolidace po bull runu z $64,500 na $66,200
+- **Klíčové patterny**:
+  - Falešný průraz $66,000 s rychlým návratem a objemem
+  - Silná býčí zóna na $65,400-$65,500 (triple bottom)
+- **Objemová divergence**: Klesající objem během konsolidace naznačuje možný pokračující pohyb
+
+## SCALPING SETUPS (5m)
+
+- **Bull Flag** formace na 5m timeframe
+- **Order Block** na $65,650 s 90% tělem svíčky
+- **Cenová mezera** mezi $65,800-$65,900 (nevyplněný gap)
+
+## KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI
+
+1. **Breakout Long**
+   - Vstup: Při průrazu $66,200 s rostoucím objemem
+   - Potvrzení: Uzavření 5m svíčky nad úrovní
+   - Stop Loss: $65,950
+   - Take Profit: $66,500 (TP1), $66,700 (TP2)
+   - Platnost: 6 hodin
+
+2. **Pullback Long**
+   - Vstup: $65,650 (Order Block)
+   - Stop Loss: $65,450
+   - Take Profit: $66,200
+   - Platnost: 4 hodiny
+
+3. **Reversal Short (pouze pokud selže průraz)**
+   - Vstup: Pod $65,400 po odmítnutí na $66,200
+   - Stop Loss: $65,750
+   - Take Profit: $64,900
+   - Platnost: 8 hodin
+
+Čas analýzy: 2024-03-16 14:30 UTC
 ```
 
 ### Single-Timeframe Analýza
