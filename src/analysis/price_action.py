@@ -112,19 +112,26 @@ Symbol: {symbol}
 - Nejdůležitější support/resistance
 
 2. 📈 30M SETUPY
-- 3 klíčové hladiny pro dnešek
+- Klíčové hladiny pro dnešek (3-5 úrovní)
 - Potenciální směr pohybu
 - Ideální vstupní zóny
 
-3. ⚡ 5M PŘÍLEŽITOSTI (pouze pokud kvalitní)
-- Konkrétní vstupní úrovně
-- Cíle a rizika
-- Časová relevance (dopoledne/odpoledne)
+3. ⚡ KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI
+- Uveďte 1-2 jasné obchodní příležitosti v tomto strukturovaném formátu:
+
+Pokud [podmínka], pak:
+Pozice: [LONG/SHORT]
+Vstup: [konkrétní cenová úroveň]
+SL: [konkrétní cenová úroveň]
+TP: [konkrétní cenová úroveň, případně více úrovní TP1/TP2]
+RRR: [poměr risk/reward]
+
+- Pokud je jedna z variant (LONG/SHORT) mnohem méně pravděpodobná vzhledem k tržnímu kontextu, uveďte pouze tu pravděpodobnější variantu
+- Pro každou příležitost uveďte také časovou relevanci (kdy je setup platný)
 
 Formát:
-- Max 8 odrážek
+- Stručné, přehledné odrážky
 - Používejte bublinové emoji pro úrovně: 🔵-strong, 🟢-moderate, 🟡-weak
-- Žádný úvod/závěr
 - Časové okno: {datetime.now().strftime("%H:%M")}-{datetime.now().replace(hour=22, minute=0).strftime("%H:%M")}"""
 
         try:
@@ -183,25 +190,33 @@ Symbol: {symbol}
 
 # ZADÁNÍ ANALÝZY
 Vytvořte stručnou multi-timeframe analýzu v češtině se zaměřením na:
-## 1. DLOUHODOBÝ TREND (1W/1D)
+## 1. 📊 DLOUHODOBÝ TREND (1W/1D)
 - Hlavní support/resistance zóny (min. 3 významné úrovně)
 - Fázová analýza trhu (akumulace/distribuce, trendové/nárazové pohyby)
 - Klíčové weekly/daily uzávěry
 
-## 2. STŘEDNĚDOBÝ KONTEXT (4H)
+## 2. 🔍 STŘEDNĚDOBÝ KONTEXT (4H)
 - Pozice v rámci vyššího trendu
 - Významné cenové mezery (imbalance zones)
 - Objemové klastry
 
-## 3. KRÁTKODOBÉ SIGNÁLY (30m/5m) [POUZE POKUD RELEVANTNÍ]
-- Výrazné price action patterny
-- Likvidní úrovně pro vstupy
-- Rychlé obchodní příležitosti (max 2 pokud existují)
+## 3. 💯 KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI
+- Uveďte 1-2 jasné obchodní příležitosti v tomto strukturovaném formátu:
+
+Pokud [podmínka], pak:
+Pozice: [LONG/SHORT]
+Vstup: [konkrétní cenová úroveň]
+SL: [konkrétní cenová úroveň]
+TP: [konkrétní cenová úroveň, případně více úrovní TP1/TP2/TP3]
+RRR: [poměr risk/reward]
+Časový horizont: [krátkodobý/střednědobý/dlouhodobý]
+
+- Pokud je jedna z variant (LONG/SHORT) mnohem méně pravděpodobná vzhledem k tržnímu kontextu, uveďte pouze tu pravděpodobnější variantu
+- Pro každou příležitost uveďte také validitu setapu (jak dlouho je obchodní příležitost relevantní)
 
 Formát:
-- Max 10 odrážek
-- Používejte emoji pro vizuální oddělení sekcí (🎯📉📈⚠️)
-- Žádné úvodní fráze, pouze fakta
+- Přehledné a stručné odrážky
+- Používejte emoji pro vizuální oddělení sekcí
 - Časové razítko: {datetime.now().strftime("%d.%m.%Y %H:%M")}"""
 
         try:
@@ -242,11 +257,22 @@ Detekované patterny:
 {last_5_patterns}
 
 Vytvořte analýzu v češtině se zaměřením na:
-1. Významné cenové mezery
-2. Silné zóny na grafu
-3. Falešné průrazy klíčových úrovní
-4. Vztah mezi cenou a objemem
-5. Konkrétní obchodní příležitosti s přesnými vstupními úrovněmi
+1. Trendový kontext a struktura trhu (3-4 body)
+2. Klíčové cenové úrovně (support/resistance) s přesnými hodnotami
+3. Vztah mezi cenou a objemem
+
+4. KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI:
+- Uveďte 1-2 jasné obchodní příležitosti v tomto strukturovaném formátu:
+
+Pokud [podmínka], pak:
+Pozice: [LONG/SHORT]
+Vstup: [konkrétní cenová úroveň]
+SL: [konkrétní cenová úroveň]
+TP: [konkrétní cenová úroveň, případně více úrovní TP1/TP2]
+RRR: [poměr risk/reward]
+
+- Pokud je jedna z variant (LONG/SHORT) mnohem méně pravděpodobná vzhledem k tržnímu kontextu, uveďte pouze tu pravděpodobnější variantu
+- Pro každou příležitost uveďte také relevanci (jak dlouho je setup platný)
 
 Formát:
 - Stručné odrážky
@@ -304,4 +330,3 @@ Formát:
                 df = self.process_data(klines_data)
                 result[timeframe] = df
         return result
-

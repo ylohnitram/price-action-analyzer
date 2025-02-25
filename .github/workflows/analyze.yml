@@ -107,21 +107,15 @@ jobs:
         run: |
           # Kompletní analýza pro BTC
           python main.py -s BTCUSDT --complete
-          sleep 60
+          # sleep 60 # sleep pred analyzou dalsiho paru
           
-          # Kompletní analýza pro ETH
-          python main.py -s ETHUSDT --complete
-      
       - name: Spuštění intraday analýzy
         if: steps.analysis-type.outputs.type == 'intraday'
         run: |
           # Intraday analýza pro BTC
           python main.py -s BTCUSDT --intraday
-          sleep 60
+          # sleep 60 # sleep pred analyzou dalsiho paru
           
-          # Intraday analýza pro ETH
-          python main.py -s ETHUSDT --intraday
-      
       - name: Spuštění single-timeframe analýzy
         if: steps.analysis-type.outputs.type == 'single'
         run: |
