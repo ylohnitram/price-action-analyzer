@@ -38,15 +38,18 @@ def parse_arguments():
                         help='Použít intraday analýzu (pouze 4h, 30m, 5m)')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Podrobnější výpisy')
+    parser.add_argument('--no-chart', action='store_true',
+                        help='Nevytvářet grafy')
     
     return parser.parse_args()
 
-def run_complete_analysis(symbol):
+def run_complete_analysis(symbol, no_chart=False):
     """
     Spustí kompletní analýzu pro všechny časové rámce.
     
     Args:
         symbol (str): Obchodní symbol
+        no_chart (bool): Nevytvářet grafy
         
     Returns:
         bool: True pokud byla analýza úspěšně dokončena
@@ -82,12 +85,26 @@ def run_complete_analysis(symbol):
         
         # Generování analýzy
         logger.info("Generuji kompletní AI analýzu")
-        analysis = analyzer.generate_multi_timeframe_analysis(symbol, dataframes)
+        analysis, support_zones, resistance_zones = analyzer.generate_multi_timeframe_analysis(symbol, dataframes)
+        
+        # Generování grafu
+        chart_path = None
+        if not no_chart and '1d' in dataframes:
+            logger.info("Generuji graf s cenovými zónami")
+            chart_path = analyzer.generate_chart(
+                dataframes['1d'], 
+                support_zones, 
+                resistance_zones, 
+                symbol
+            )
+            logger.info(f"Graf vygenerován: {chart_path}")
         
         # Odeslání výsledků
-        message = f"**Kompletní Price Action Analýza {symbol}**\n\n{analysis}"
         logger.info("Odesílám analýzu na Telegram")
-        telegram_bot.send_message(message)
+        if chart_path:
+            telegram_bot.send_analysis_with_chart(analysis, chart_path)
+        else:
+            telegram_bot.send_message(analysis)
         
         # Uložení dat
         for tf, df in dataframes.items():
@@ -101,12 +118,13 @@ def run_complete_analysis(symbol):
         logger.error(f"Chyba během kompletní analýzy: {str(e)}")
         return False
 
-def run_intraday_analysis(symbol):
+def run_intraday_analysis(symbol, no_chart=False):
     """
     Spustí intraday analýzu zaměřenou na kratší časové rámce.
     
     Args:
         symbol (str): Obchodní symbol
+        no_chart (bool): Nevytvářet grafy
         
     Returns:
         bool: True pokud byla analýza úspěšně dokončena
@@ -142,12 +160,26 @@ def run_intraday_analysis(symbol):
         
         # Generování analýzy
         logger.info("Generuji intraday AI analýzu")
-        analysis = analyzer.generate_intraday_analysis(symbol, dataframes)
+        analysis, support_zones, resistance_zones = analyzer.generate_intraday_analysis(symbol, dataframes)
+        
+        # Generování grafu
+        chart_path = None
+        if not no_chart and '4h' in dataframes:
+            logger.info("Generuji graf s cenovými zónami")
+            chart_path = analyzer.generate_chart(
+                dataframes['4h'], 
+                support_zones, 
+                resistance_zones, 
+                symbol
+            )
+            logger.info(f"Graf vygenerován: {chart_path}")
         
         # Odeslání výsledků
-        message = f"**Intraday Price Action Analýza {symbol}**\n\n{analysis}"
         logger.info("Odesílám analýzu na Telegram")
-        telegram_bot.send_message(message)
+        if chart_path:
+            telegram_bot.send_analysis_with_chart(analysis, chart_path)
+        else:
+            telegram_bot.send_message(analysis)
         
         # Uložení dat
         for tf, df in dataframes.items():
@@ -161,7 +193,7 @@ def run_intraday_analysis(symbol):
         logger.error(f"Chyba během intraday analýzy: {str(e)}")
         return False
 
-def run_analysis(symbol, interval, days):
+def run_analysis(symbol, interval, days, no_chart=False):
     """
     Spustí analýzu pro jeden časový rámec.
     
@@ -169,6 +201,7 @@ def run_analysis(symbol, interval, days):
         symbol (str): Obchodní symbol
         interval (str): Časový interval
         days (int): Počet dní historie
+        no_chart (bool): Nevytvářet grafy
         
     Returns:
         bool: True pokud byla analýza úspěšně dokončena
@@ -206,12 +239,21 @@ def run_analysis(symbol, interval, days):
         
         # Generování analýzy
         logger.info("Generuji AI analýzu")
-        analysis = analyzer.generate_analysis(symbol, df, patterns)
+        analysis, support_zones, resistance_zones = analyzer.generate_analysis(symbol, df, patterns)
+        
+        # Generování grafu
+        chart_path = None
+        if not no_chart:
+            logger.info("Generuji graf s cenovými zónami")
+            chart_path = analyzer.generate_chart(df, support_zones, resistance_zones, symbol)
+            logger.info(f"Graf vygenerován: {chart_path}")
         
         # Odeslání výsledků
-        message = f"**Price Action Analýza {symbol} ({interval})**\n\n{analysis}"
         logger.info("Odesílám analýzu na Telegram")
-        telegram_bot.send_message(message)
+        if chart_path:
+            telegram_bot.send_analysis_with_chart(analysis, chart_path)
+        else:
+            telegram_bot.send_message(analysis)
         
         # Uložení dat
         filename = save_data_to_csv(df, symbol, interval)
@@ -237,13 +279,13 @@ def main():
     try:
         if args.complete or args.multi:  # Podpora obou variant
             logger.info("Spouštím kompletní analýzu")
-            success = run_complete_analysis(args.symbol)
+            success = run_complete_analysis(args.symbol, args.no_chart)
         elif args.intraday:
             logger.info("Spouštím intraday analýzu")
-            success = run_intraday_analysis(args.symbol)
+            success = run_intraday_analysis(args.symbol, args.no_chart)
         else:
             logger.info("Spouštím single-timeframe analýzu")
-            success = run_analysis(args.symbol, args.interval, args.days)
+            success = run_analysis(args.symbol, args.interval, args.days, args.no_chart)
             
         sys.exit(0 if success else 1)
     except KeyboardInterrupt:

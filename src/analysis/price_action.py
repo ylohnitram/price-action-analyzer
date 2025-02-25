@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 
 from datetime import datetime
+import os
+import numpy as np
 from openai import OpenAI
 import pandas as pd
+import mplfinance as mpf
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+import re
 
 class PriceActionAnalyzer:
     """Třída pro analýzu price action dat pomocí AI."""
@@ -69,7 +75,7 @@ class PriceActionAnalyzer:
             dataframes (dict): Slovník s DataFrame pro různé časové rámce
             
         Returns:
-            str: Vygenerovaná intraday analýza
+            tuple: (analýza, support_zóny, resistance_zóny)
         """
         # Detekce patternů pro každý časový rámec
         patterns_by_tf = {}
@@ -106,32 +112,38 @@ Symbol: {symbol}
 # KLÍČOVÉ ÚROVNĚ
 {''.join(timeframe_data)}
 
-# ZADÁNÍ ANALÝZY
-1. 🕵️♂️ 4H KONTEXT (max 3 body)
+## 🕵️♂️ 4H KONTEXT
 - Trendový směr
-- Nejdůležitější support/resistance
+- Nejdůležitější supportní zóny (definujte jako rozsah cen, např. 86000-86200)
+- Nejdůležitější resistenční zóny (definujte jako rozsah cen, např. 89400-89600)
 
-2. 📈 30M SETUPY
-- Klíčové hladiny pro dnešek (3-5 úrovní)
+## 📈 30M SETUPY
+- Klíčové zóny pro dnešek:
+  - Supportní zóny: definujte 2-3 klíčové zóny s rozsahem
+  - Resistenční zóny: definujte 2-3 klíčové zóny s rozsahem
 - Potenciální směr pohybu
 - Ideální vstupní zóny
 
-3. ⚡ KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI
-- Uveďte 1-2 jasné obchodní příležitosti v tomto strukturovaném formátu:
+## ⚡ KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI
+- Uveďte pouze obchodní příležitosti s RRR 2:1 nebo lepším
+- Uveďte 1-2 jasné obchodní příležitosti v tomto formátu:
 
 Pokud [podmínka], pak:
 Pozice: [LONG/SHORT]
-Vstup: [konkrétní cenová úroveň]
-SL: [konkrétní cenová úroveň]
-TP: [konkrétní cenová úroveň, případně více úrovní TP1/TP2]
-RRR: [poměr risk/reward]
+Vstup: [přesná cenová úroveň]
+SL: [přesná cenová úroveň]
+TP1: [přesná cenová úroveň] (50%)
+TP2: [přesná cenová úroveň] (50%)
+RRR: [přesný poměr risk/reward, např. 2.5:1]
+Časová platnost: [konkrétní časový údaj]
 
 - Pokud je jedna z variant (LONG/SHORT) mnohem méně pravděpodobná vzhledem k tržnímu kontextu, uveďte pouze tu pravděpodobnější variantu
-- Pro každou příležitost uveďte také časovou relevanci (kdy je setup platný)
+- NEZAHRNUJTE žádné závěrečné shrnutí ani varování
 
 Formát:
 - Stručné, přehledné odrážky
-- Používejte bublinové emoji pro úrovně: 🔵-strong, 🟢-moderate, 🟡-weak
+- Pouze konkrétní informace, žádný vágní text
+- Nepoužívejte žádná varování ani 'AI' fráze (například vyhněte se 'vždy si ověřte aktuální tržní podmínky')
 - Časové okno: {datetime.now().strftime("%H:%M")}-{datetime.now().replace(hour=22, minute=0).strftime("%H:%M")}"""
 
         try:
@@ -141,7 +153,14 @@ Formát:
                 temperature=0.2,
                 max_tokens=2500
             )
-            return response.choices[0].message.content
+            analysis = response.choices[0].message.content
+            
+            # Extrahování zón supportů a resistancí
+            support_zones = self.extract_zones_from_analysis(analysis, "support")
+            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
+            
+            return analysis, support_zones, resistance_zones
+            
         except Exception as e:
             raise Exception(f"Chyba při generování intraday analýzy: {str(e)}")
 
@@ -154,7 +173,7 @@ Formát:
             dataframes (dict): Slovník s DataFrame pro různé časové rámce
             
         Returns:
-            str: Vygenerovaná analýza
+            tuple: (analýza, support_zóny, resistance_zóny)
         """
         patterns_by_tf = {}
         for tf, df in dataframes.items():
@@ -188,10 +207,9 @@ Symbol: {symbol}
 # DATA PODLE ČASOVÝCH RÁMCŮ
 {''.join(timeframe_data)}
 
-# ZADÁNÍ ANALÝZY
-Vytvořte stručnou multi-timeframe analýzu v češtině se zaměřením na:
 ## 1. 📊 DLOUHODOBÝ TREND (1W/1D)
-- Hlavní support/resistance zóny (min. 3 významné úrovně)
+- Hlavní supportní zóny (min. 3 významné zóny definované jako rozsah cen, např. 86000-86200)
+- Hlavní resistenční zóny (min. 3 významné zóny definované jako rozsah cen, např. 89400-89600)
 - Fázová analýza trhu (akumulace/distribuce, trendové/nárazové pohyby)
 - Klíčové weekly/daily uzávěry
 
@@ -201,22 +219,26 @@ Vytvořte stručnou multi-timeframe analýzu v češtině se zaměřením na:
 - Objemové klastry
 
 ## 3. 💯 KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI
-- Uveďte 1-2 jasné obchodní příležitosti v tomto strukturovaném formátu:
+- Uveďte pouze obchodní příležitosti s RRR 2:1 nebo lepším
+- Uveďte 1-2 jasné obchodní příležitosti v tomto formátu:
 
 Pokud [podmínka], pak:
 Pozice: [LONG/SHORT]
-Vstup: [konkrétní cenová úroveň]
-SL: [konkrétní cenová úroveň]
-TP: [konkrétní cenová úroveň, případně více úrovní TP1/TP2/TP3]
-RRR: [poměr risk/reward]
+Vstup: [přesná cenová úroveň]
+SL: [přesná cenová úroveň]
+TP1: [přesná cenová úroveň] (50%)
+TP2: [přesná cenová úroveň] (50%)
+RRR: [přesný poměr risk/reward, např. 2.5:1]
 Časový horizont: [krátkodobý/střednědobý/dlouhodobý]
+Platnost: [konkrétní časový údaj]
 
 - Pokud je jedna z variant (LONG/SHORT) mnohem méně pravděpodobná vzhledem k tržnímu kontextu, uveďte pouze tu pravděpodobnější variantu
-- Pro každou příležitost uveďte také validitu setapu (jak dlouho je obchodní příležitost relevantní)
+- NEZAHRNUJTE žádné závěrečné shrnutí ani varování
 
 Formát:
 - Přehledné a stručné odrážky
-- Používejte emoji pro vizuální oddělení sekcí
+- Pouze konkrétní informace, žádný vágní text
+- Nepoužívejte žádná varování ani 'AI' fráze (například vyhněte se 'vždy si ověřte aktuální tržní podmínky')
 - Časové razítko: {datetime.now().strftime("%d.%m.%Y %H:%M")}"""
 
         try:
@@ -226,7 +248,14 @@ Formát:
                 temperature=0.2,
                 max_tokens=3000
             )
-            return response.choices[0].message.content
+            analysis = response.choices[0].message.content
+            
+            # Extrahování zón supportů a resistancí
+            support_zones = self.extract_zones_from_analysis(analysis, "support")
+            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
+            
+            return analysis, support_zones, resistance_zones
+            
         except Exception as e:
             raise Exception(f"Chyba při generování multi-timeframe analýzy: {str(e)}")
 
@@ -240,7 +269,7 @@ Formát:
             patterns (list, optional): Seznam detekovaných patternů
             
         Returns:
-            str: Vygenerovaná analýza
+            tuple: (analýza, support_zóny, resistance_zóny)
         """
         if patterns is None:
             patterns = self.detect_patterns(df)
@@ -258,26 +287,31 @@ Detekované patterny:
 
 Vytvořte analýzu v češtině se zaměřením na:
 1. Trendový kontext a struktura trhu (3-4 body)
-2. Klíčové cenové úrovně (support/resistance) s přesnými hodnotami
+2. Klíčové cenové zóny:
+   - Supportní zóny (definujte jako rozsahy cen, např. 86000-86200)
+   - Resistenční zóny (definujte jako rozsahy cen, např. 89400-89600)
 3. Vztah mezi cenou a objemem
 
 4. KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI:
-- Uveďte 1-2 jasné obchodní příležitosti v tomto strukturovaném formátu:
+- Uveďte pouze obchodní příležitosti s RRR 2:1 nebo lepším
+- Uveďte 1-2 jasné obchodní příležitosti v tomto formátu:
 
 Pokud [podmínka], pak:
 Pozice: [LONG/SHORT]
-Vstup: [konkrétní cenová úroveň]
-SL: [konkrétní cenová úroveň]
-TP: [konkrétní cenová úroveň, případně více úrovní TP1/TP2]
-RRR: [poměr risk/reward]
+Vstup: [přesná cenová úroveň]
+SL: [přesná cenová úroveň]
+TP1: [přesná cenová úroveň] (50%)
+TP2: [přesná cenová úroveň] (50%)
+RRR: [přesný poměr risk/reward, např. 2.5:1]
+Platnost: [konkrétní časový údaj]
 
 - Pokud je jedna z variant (LONG/SHORT) mnohem méně pravděpodobná vzhledem k tržnímu kontextu, uveďte pouze tu pravděpodobnější variantu
-- Pro každou příležitost uveďte také relevanci (jak dlouho je setup platný)
+- NEZAHRNUJTE žádné závěrečné shrnutí ani varování
 
 Formát:
 - Stručné odrážky
-- Konkrétní cenové úrovně z dat
-- Žádné technické indikátory
+- Pouze konkrétní informace, žádný vágní text
+- Nepoužívejte žádná varování ani 'AI' fráze (například vyhněte se 'vždy si ověřte aktuální tržní podmínky')
 - Časové razítko: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC"""
 
         try:
@@ -287,9 +321,158 @@ Formát:
                 temperature=0.2,
                 max_tokens=2000
             )
-            return response.choices[0].message.content
+            analysis = response.choices[0].message.content
+            
+            # Extrahování zón supportů a resistancí
+            support_zones = self.extract_zones_from_analysis(analysis, "support")
+            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
+            
+            return analysis, support_zones, resistance_zones
+            
         except Exception as e:
             raise Exception(f"Chyba při generování analýzy: {str(e)}")
+
+    def extract_zones_from_analysis(self, analysis, zone_type):
+        """
+        Extrahuje zóny supportů nebo resistancí z textu analýzy.
+        
+        Args:
+            analysis (str): Text analýzy
+            zone_type (str): Typ zóny ('support' nebo 'resistance')
+            
+        Returns:
+            list: Seznam zón ve formátu [(min1, max1), (min2, max2), ...]
+        """
+        zones = []
+        
+        # Různé možné variace názvů v textu
+        if zone_type.lower() == "support":
+            patterns = [
+                r"[Ss]upportní zón[ay]:\s*([0-9,.-]+)-([0-9,.-]+)",
+                r"[Ss]upport[ní]{0,2} zón[ay]?.*?([0-9,.-]+)-([0-9,.-]+)",
+                r"[Ss]upport.*?([0-9,.-]+)-([0-9,.-]+)"
+            ]
+        else:  # resistance
+            patterns = [
+                r"[Rr]esistenční zón[ay]:\s*([0-9,.-]+)-([0-9,.-]+)",
+                r"[Rr]esisten[cč][en]í zón[ay]?.*?([0-9,.-]+)-([0-9,.-]+)",
+                r"[Rr]esisten[cč][en].*?([0-9,.-]+)-([0-9,.-]+)"
+            ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, analysis)
+            for match in matches:
+                try:
+                    min_value = float(match[0].replace(',', '.'))
+                    max_value = float(match[1].replace(',', '.'))
+                    zones.append((min_value, max_value))
+                except (ValueError, IndexError):
+                    continue
+        
+        # Pokud nenajdeme zóny pomocí rozsahů, zkusíme hledat konkrétní hodnoty
+        if not zones:
+            if zone_type.lower() == "support":
+                value_pattern = r"[Ss]upport.*?([0-9,.-]+)"
+            else:
+                value_pattern = r"[Rr]esisten[cč][en].*?([0-9,.-]+)"
+            
+            matches = re.findall(value_pattern, analysis)
+            for match in matches:
+                try:
+                    value = float(match.replace(',', '.'))
+                    # Vytvoříme z konkrétní hodnoty malou zónu (±0.5%)
+                    margin = value * 0.005
+                    zones.append((value - margin, value + margin))
+                except ValueError:
+                    continue
+        
+        return zones
+
+    def generate_chart(self, df, support_zones, resistance_zones, symbol, filename=None):
+        """
+        Generuje svíčkový graf s naznačenými zónami a scénáři.
+        
+        Args:
+            df (pandas.DataFrame): DataFrame s OHLCV daty
+            support_zones (list): Seznam supportních zón [(min1, max1), (min2, max2), ...]
+            resistance_zones (list): Seznam resistenčních zón [(min1, max1), (min2, max2), ...]
+            symbol (str): Symbol obchodního páru
+            filename (str, optional): Název výstupního souboru. Pokud None, vygeneruje automaticky.
+            
+        Returns:
+            str: Cesta k vygenerovanému souboru
+        """
+        if not filename:
+            # Vytvoření adresáře pro grafy, pokud neexistuje
+            charts_dir = "charts"
+            if not os.path.exists(charts_dir):
+                os.makedirs(charts_dir)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = os.path.join(charts_dir, f"{symbol}_{timestamp}.png")
+        
+        # Příprava dat pro MPLFinance
+        plot_data = df.copy()
+        
+        # Příprava grafu
+        fig, axes = mpf.plot(
+            plot_data, 
+            type='candle', 
+            style='yahoo', 
+            title=f"{symbol} - Price Action Analysis",
+            ylabel='Price',
+            volume=True,
+            figsize=(12, 8),
+            returnfig=True,
+            warn_too_much_data=10000
+        )
+        
+        # Přidání supportních zón
+        ax = axes[0]
+        price_range = df['high'].max() - df['low'].min()
+        x_range = (plot_data.index[-1] - plot_data.index[0]).total_seconds()
+        
+        # Přidání support zón
+        for s_min, s_max in support_zones:
+            rect = plt.Rectangle(
+                (plot_data.index[0], s_min), 
+                x_range, 
+                s_max - s_min,
+                facecolor='green', 
+                alpha=0.3,
+                zorder=0
+            )
+            ax.add_patch(rect)
+        
+        # Přidání resistance zón
+        for r_min, r_max in resistance_zones:
+            rect = plt.Rectangle(
+                (plot_data.index[0], r_min), 
+                x_range, 
+                r_max - r_min,
+                facecolor='red', 
+                alpha=0.3,
+                zorder=0
+            )
+            ax.add_patch(rect)
+        
+        # Automaticky nastavit y-limity grafu tak, aby zahrnuly všechny zóny
+        all_min_values = [z[0] for z in support_zones + resistance_zones]
+        all_max_values = [z[1] for z in support_zones + resistance_zones]
+        
+        if all_min_values and all_max_values:
+            min_value = min(all_min_values + [df['low'].min()])
+            max_value = max(all_max_values + [df['high'].max()])
+            # Přidáme 5% margin
+            margin = (max_value - min_value) * 0.05
+            ax.set_ylim(min_value - margin, max_value + margin)
+        
+        # Uložení grafu
+        plt.tight_layout()
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        
+        return filename
 
     def process_data(self, klines_data):
         """
