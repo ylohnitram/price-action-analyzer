@@ -2,6 +2,7 @@
 
 import time
 import requests
+import os
 from tqdm import tqdm
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -36,8 +37,22 @@ class BinanceClient:
         self.use_futures_api = False
         
     def _create_session(self):
-        """Vytvoří HTTP session s retry strategií."""
+        """Vytvoří HTTP session s retry strategií a proxy podporou."""
         session = requests.Session()
+        
+        # Přidání proxy pro GitHub Actions
+        proxy_url = os.environ.get('PROXY_URL')
+        if proxy_url:
+            session.proxies = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
+            # Bezpečný výpis bez hesla
+            safe_proxy = proxy_url.replace('http://', '').replace('https://', '')
+            if '@' in safe_proxy:
+                safe_proxy = safe_proxy.split('@')[1]
+            print(f"Používám proxy: {safe_proxy}")
+            
         retry_strategy = Retry(
             total=3,
             backoff_factor=1,
@@ -257,7 +272,10 @@ class BinanceClient:
             
             headers = {
                 'User-Agent': random.choice(user_agents),
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'Accept-Language': 'en-GB,en;q=0.9,ja-JP;q=0.8,ja;q=0.7,en-US;q=0.6',
+                'Origin': 'https://www.binance.com',
+                'Referer': 'https://www.binance.com/'
             }
 
             response = self.session.get(
