@@ -167,18 +167,33 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=1):
         logger.info("Generuji intraday AI analýzu")
         analysis, support_zones, resistance_zones = analyzer.generate_intraday_analysis(symbol, dataframes)
         
-        # Generování grafu
+        # Generování grafu - nikdy nepoužívat 4h timeframe pro intraday
         chart_path = None
-        if not no_chart and '4h' in dataframes:
-            logger.info(f"Generuji graf s cenovými zónami za posledních {chart_days} dní")
-            chart_path = analyzer.generate_chart(
-                dataframes['4h'], 
-                support_zones, 
-                resistance_zones, 
-                symbol,
-                days_to_show=chart_days
-            )
-            logger.info(f"Graf vygenerován: {chart_path}")
+        if not no_chart:
+            # Pro intraday analýzu preferujeme 30m nebo 5m data
+            if '30m' in dataframes:
+                chart_tf = '30m'
+            elif '5m' in dataframes:
+                chart_tf = '5m'
+            else:
+                # Pokud nemáme intradenní data, neděláme graf
+                logger.warning("Nedostatek vhodných intradenních dat pro graf")
+                chart_tf = None
+            
+            if chart_tf:
+                # Maximálně 48 hodin dat pro intraday graf
+                hours_to_show = min(48, chart_days * 24)
+                days_to_show = hours_to_show / 24
+                
+                logger.info(f"Generuji graf z {chart_tf} dat za posledních {hours_to_show} hodin")
+                chart_path = analyzer.generate_chart(
+                    dataframes[chart_tf], 
+                    support_zones, 
+                    resistance_zones, 
+                    symbol,
+                    days_to_show=days_to_show
+                )
+                logger.info(f"Graf vygenerován: {chart_path}")
         
         # Odeslání výsledků
         logger.info("Odesílám analýzu na Telegram")
