@@ -40,16 +40,19 @@ def parse_arguments():
                         help='Podrobnější výpisy')
     parser.add_argument('--no-chart', action='store_true',
                         help='Nevytvářet grafy')
+    parser.add_argument('--chart-days', type=int, default=2,
+                        help='Počet dní dat k zobrazení v grafu (výchozí: 2)')
     
     return parser.parse_args()
 
-def run_complete_analysis(symbol, no_chart=False):
+def run_complete_analysis(symbol, no_chart=False, chart_days=2):
     """
     Spustí kompletní analýzu pro všechny časové rámce.
     
     Args:
         symbol (str): Obchodní symbol
         no_chart (bool): Nevytvářet grafy
+        chart_days (int): Počet dní v grafu
         
     Returns:
         bool: True pokud byla analýza úspěšně dokončena
@@ -90,12 +93,13 @@ def run_complete_analysis(symbol, no_chart=False):
         # Generování grafu
         chart_path = None
         if not no_chart and '1d' in dataframes:
-            logger.info("Generuji graf s cenovými zónami")
+            logger.info(f"Generuji graf s cenovými zónami za posledních {chart_days} dní")
             chart_path = analyzer.generate_chart(
                 dataframes['1d'], 
                 support_zones, 
                 resistance_zones, 
-                symbol
+                symbol,
+                days_to_show=chart_days
             )
             logger.info(f"Graf vygenerován: {chart_path}")
         
@@ -118,13 +122,14 @@ def run_complete_analysis(symbol, no_chart=False):
         logger.error(f"Chyba během kompletní analýzy: {str(e)}")
         return False
 
-def run_intraday_analysis(symbol, no_chart=False):
+def run_intraday_analysis(symbol, no_chart=False, chart_days=1):
     """
     Spustí intraday analýzu zaměřenou na kratší časové rámce.
     
     Args:
         symbol (str): Obchodní symbol
         no_chart (bool): Nevytvářet grafy
+        chart_days (int): Počet dní v grafu (výchozí hodnota 1 pro intraday)
         
     Returns:
         bool: True pokud byla analýza úspěšně dokončena
@@ -165,12 +170,13 @@ def run_intraday_analysis(symbol, no_chart=False):
         # Generování grafu
         chart_path = None
         if not no_chart and '4h' in dataframes:
-            logger.info("Generuji graf s cenovými zónami")
+            logger.info(f"Generuji graf s cenovými zónami za posledních {chart_days} dní")
             chart_path = analyzer.generate_chart(
                 dataframes['4h'], 
                 support_zones, 
                 resistance_zones, 
-                symbol
+                symbol,
+                days_to_show=chart_days
             )
             logger.info(f"Graf vygenerován: {chart_path}")
         
@@ -193,7 +199,7 @@ def run_intraday_analysis(symbol, no_chart=False):
         logger.error(f"Chyba během intraday analýzy: {str(e)}")
         return False
 
-def run_analysis(symbol, interval, days, no_chart=False):
+def run_analysis(symbol, interval, days, no_chart=False, chart_days=2):
     """
     Spustí analýzu pro jeden časový rámec.
     
@@ -202,6 +208,7 @@ def run_analysis(symbol, interval, days, no_chart=False):
         interval (str): Časový interval
         days (int): Počet dní historie
         no_chart (bool): Nevytvářet grafy
+        chart_days (int): Počet dní v grafu
         
     Returns:
         bool: True pokud byla analýza úspěšně dokončena
@@ -244,8 +251,14 @@ def run_analysis(symbol, interval, days, no_chart=False):
         # Generování grafu
         chart_path = None
         if not no_chart:
-            logger.info("Generuji graf s cenovými zónami")
-            chart_path = analyzer.generate_chart(df, support_zones, resistance_zones, symbol)
+            logger.info(f"Generuji graf s cenovými zónami za posledních {chart_days} dní")
+            chart_path = analyzer.generate_chart(
+                df, 
+                support_zones, 
+                resistance_zones, 
+                symbol,
+                days_to_show=chart_days
+            )
             logger.info(f"Graf vygenerován: {chart_path}")
         
         # Odeslání výsledků
@@ -279,13 +292,15 @@ def main():
     try:
         if args.complete or args.multi:  # Podpora obou variant
             logger.info("Spouštím kompletní analýzu")
-            success = run_complete_analysis(args.symbol, args.no_chart)
+            success = run_complete_analysis(args.symbol, args.no_chart, args.chart_days)
         elif args.intraday:
             logger.info("Spouštím intraday analýzu")
-            success = run_intraday_analysis(args.symbol, args.no_chart)
+            # Pro intraday defaultně pouze 1 den dat
+            chart_days = min(1, args.chart_days) if args.chart_days != 2 else 1
+            success = run_intraday_analysis(args.symbol, args.no_chart, chart_days)
         else:
             logger.info("Spouštím single-timeframe analýzu")
-            success = run_analysis(args.symbol, args.interval, args.days, args.no_chart)
+            success = run_analysis(args.symbol, args.interval, args.days, args.no_chart, args.chart_days)
             
         sys.exit(0 if success else 1)
     except KeyboardInterrupt:
