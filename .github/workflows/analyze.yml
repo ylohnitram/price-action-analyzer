@@ -46,6 +46,8 @@ on:
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    # Explicitně specifikovat použití prostředí "prod" pro přístup k environment secrets
+    environment: prod
     
     # Definice proměnných prostředí přímo na úrovni jobu
     env:
