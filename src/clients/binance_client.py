@@ -96,40 +96,40 @@ class BinanceClient:
         return all_klines
 
     def fetch_intraday_data(self, symbol):
-    """
-    Stáhne OHLCV data pro intraday analýzu s přesně specifikovanými timeframy.
-    
-    Args:
-        symbol (str): Obchodní symbol (např. 'BTCUSDT')
+        """
+        Stáhne OHLCV data pro intraday analýzu s přesně specifikovanými timeframy.
         
-    Returns:
-        dict: Slovník DataFrame s daty pro intraday timeframy
-    """
-    print(f"Stahuji intraday data pro {symbol}...")
-    
-    # Definice časových rámců přesně dle zadání uživatele
-    timeframes = {
-        "4h": 30,     # 4-hodinová data - období 1 měsíce
-        "30m": 7,     # 30-minutová data - období 1 týdne 
-        "5m": 3       # 5-minutová data - období 3 dnů
-    }
-    
-    results = {}
-    
-    for interval, days in timeframes.items():
-        try:
-            print(f"Stahuji {interval} data za posledních {days} dní...")
-            klines_data = self.fetch_historical_data(symbol, interval, days)
-            results[interval] = klines_data
-            print(f"Staženo {len(klines_data)} svíček pro {interval}")
+        Args:
+            symbol (str): Obchodní symbol (např. 'BTCUSDT')
             
-            # Pauza mezi požadavky
-            time.sleep(1)
-            
-        except Exception as e:
-            print(f"Chyba při stahování {interval} dat: {str(e)}")
-    
-    return results
+        Returns:
+            dict: Slovník DataFrame s daty pro intraday timeframy
+        """
+        print(f"Stahuji intraday data pro {symbol}...")
+        
+        # Definice časových rámců přesně dle zadání uživatele
+        timeframes = {
+            "4h": 30,     # 4-hodinová data - období 1 měsíce
+            "30m": 7,     # 30-minutová data - období 1 týdne 
+            "5m": 3       # 5-minutová data - období 3 dnů
+        }
+        
+        results = {}
+        
+        for interval, days in timeframes.items():
+            try:
+                print(f"Stahuji {interval} data za posledních {days} dní...")
+                klines_data = self.fetch_historical_data(symbol, interval, days)
+                results[interval] = klines_data
+                print(f"Staženo {len(klines_data)} svíček pro {interval}")
+                
+                # Pauza mezi požadavky
+                time.sleep(1)
+                
+            except Exception as e:
+                print(f"Chyba při stahování {interval} dat: {str(e)}")
+        
+        return results
 
     def fetch_multi_timeframe_data(self, symbol):
         """
