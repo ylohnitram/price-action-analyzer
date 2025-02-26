@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import matplotlib
-matplotlib.use('Agg')  # Non-interactive backend
+matplotlib.use('Agg')  # Non-interactive backend for rendering charts
 from datetime import datetime, timedelta
 import os
 import numpy as np
@@ -28,6 +28,12 @@ class ChartGenerator:
         if not filename:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = os.path.join(charts_dir, f"{symbol}_{timestamp}.png")
+
+        # Ensure the dataframe has the required columns for mplfinance (OHLCV)
+        required_columns = {'open', 'high', 'low', 'close', 'volume'}
+        if not required_columns.issubset(df.columns):
+            logger.error("Dataframe does not contain the required OHLCV columns.")
+            return None
 
         # Limit the data range to display
         end_date = df.index.max()
