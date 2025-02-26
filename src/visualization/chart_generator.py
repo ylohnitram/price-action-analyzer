@@ -80,34 +80,37 @@ class ChartGenerator:
         )
 
         try:
-            # Create additional plots for S/R zones
-            add_plots = []
-            
+            # Create the figure and subplots
+            fig = plt.figure(figsize=(12, 8))
+            gs = fig.add_gridspec(5, 1)
+            ax1 = fig.add_subplot(gs[0:4, 0])  # Main price chart
+            ax2 = fig.add_subplot(gs[4, 0], sharex=ax1)  # Volume chart
+
+            # Plot candlesticks and volume bars using mplfinance
+            mpf.plot(plot_data, ax=ax1, volume=ax2, type='candle', style=style)
+
             # Add support zones (green rectangles)
             for s_min, s_max in (support_zones or []):
                 if not (np.isnan(s_min) or np.isnan(s_max)):
-                    add_plots.append(mpf.make_addplot(
-                        [s_min] * len(plot_data), color='green', alpha=0.3))
-                    add_plots.append(mpf.make_addplot(
-                        [s_max] * len(plot_data), color='green', alpha=0.3))
+                    ax1.axhspan(s_min, s_max, facecolor='#90EE90', alpha=0.3)
 
             # Add resistance zones (red rectangles)
             for r_min, r_max in (resistance_zones or []):
                 if not (np.isnan(r_min) or np.isnan(r_max)):
-                    add_plots.append(mpf.make_addplot(
-                        [r_min] * len(plot_data), color='red', alpha=0.3))
-                    add_plots.append(mpf.make_addplot(
-                        [r_max] * len(plot_data), color='red', alpha=0.3))
+                    ax1.axhspan(r_min, r_max, facecolor='#FFB6C1', alpha=0.3)
 
-            # Plot candlesticks and volume bars using mplfinance
-            mpf.plot(
-                plot_data,
-                type='candle',
-                volume=True,
-                style=style,
-                addplot=add_plots,
-                savefig=dict(fname=filename, dpi=150, bbox_inches='tight')
-            )
+            # Adjust layout for better readability
+            plt.subplots_adjust(bottom=0.15, hspace=0.05)
+
+            # Add a watermark with generation time
+            plt.figtext(0.01, 0.01,
+                        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                        fontsize=7, backgroundcolor='white',
+                        bbox=dict(facecolor='white', alpha=0.8))
+
+            # Save the chart to file
+            plt.savefig(filename, dpi=150)
+            plt.close(fig)
 
             logger.info(f"Chart saved: {filename}")
             return filename
