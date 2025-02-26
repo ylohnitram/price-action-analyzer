@@ -102,7 +102,7 @@ class PriceActionAnalyzer:
         patterns_by_tf[tf] = self.detect_patterns(df)
 
     timeframe_data = []
-    all_timeframes = ["1w", "1d", "4h", "30m", "5m"]
+    all_timeframes = ["1w", "1d", "4h"]
     
     for tf in all_timeframes:
         if tf in dataframes:

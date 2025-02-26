@@ -149,7 +149,8 @@ class ChartGenerator:
                 style=style, 
                 show_nontrading=False,
                 datetime_format='%Y-%m-%d',
-                xrotation=0
+                xrotation=0,
+                returnfig=False
             )
 
             # Calculate date range for future projections
