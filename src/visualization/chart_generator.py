@@ -161,20 +161,48 @@ class ChartGenerator:
                                ha='right', va='center', fontweight='bold',
                                bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0))
 
-            # Dynamické formátování osy X
-            if timeframe in ['5m', '15m', '30m']:
-                locator = mdates.HourLocator(interval=2)
-                formatter = mdates.DateFormatter('%H:%M\n%d.%m')
-            elif timeframe in ['1h', '4h']:
+            # Dynamické formátování osy X podle specifikovaných timeframů
+            if timeframe == '5m':  
+                # Pro 5m (nejkratší timeframe) zobrazíme hodiny:minuty
+                if len(plot_data) > 48:
+                    locator = mdates.HourLocator(interval=4)  # Každé 4 hodiny
+                else:
+                    locator = mdates.HourLocator(interval=2)  # Každé 2 hodiny
+                formatter = mdates.DateFormatter('%H:%M')  # Pouze hodiny:minuty
+                
+            elif timeframe == '30m':
+                # Pro 30m (intradenní) také zobrazíme hodiny:minuty, ale více rozestup
+                locator = mdates.HourLocator(interval=4)
+                formatter = mdates.DateFormatter('%H:%M')
+                
+            elif timeframe == '4h':
+                # Pro 4h (intradenní) zobrazíme i datum
                 locator = mdates.DayLocator()
                 formatter = mdates.DateFormatter('%d.%m')
+                
+            elif timeframe == '1d':
+                # Pro denní data zobrazíme jen datum
+                locator = mdates.WeekdayLocator(interval=1)
+                formatter = mdates.DateFormatter('%d.%m')
+                
+            elif timeframe == '1w':
+                # Pro týdenní data zobrazíme datum ve formátu měsíc/rok
+                locator = mdates.MonthLocator()
+                formatter = mdates.DateFormatter('%m/%y')
+                
             else:
-                locator = mdates.AutoDateLocator()
+                # Pro ostatní nebo neznámé timeframy použijeme automatické určení
+                locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
                 formatter = mdates.DateFormatter('%d.%m')
 
             ax.xaxis.set_major_locator(locator)
             ax.xaxis.set_major_formatter(formatter)
-            plt.xticks(rotation=35, ha='right', fontsize=8)
+            
+            # Otočení a úprava popisků osy X
+            plt.setp(ax.get_xticklabels(), rotation=35, ha='right', fontsize=8)
+            
+            # Odstranění popisků osy X u grafu objemu
+            ax2.set_xticklabels([])
 
             # Úprava osy Y pro zahrnutí všech zón
             # 1. Převod všech cenových dat na numpy array
@@ -210,6 +238,17 @@ class ChartGenerator:
             ax2.tick_params(axis='y', labelsize=7)
             ax2.grid(False)
             ax2.set_facecolor('#f5f5f5')
+            
+            # Odstranění překrývajících se popisků
+            fig.canvas.draw()
+            # Máme-li hodně popisků, odstranit každý druhý pro lepší čitelnost
+            if len(ax.get_xticklabels()) > 6:
+                for ax in fig.axes:
+                    # Získáme aktuální pozice popisků
+                    labels = ax.get_xticklabels()
+                    for i, label in enumerate(labels):
+                        if i % 2 == 1:  # Odstranit každý druhý popisek
+                            label.set_visible(False)
 
             # Vodoznak a úpravy layoutu
             plt.figtext(0.01, 0.01, 
@@ -217,8 +256,21 @@ class ChartGenerator:
                        fontsize=7,
                        backgroundcolor='white',
                        bbox=dict(facecolor='white', alpha=0.8, pad=2, edgecolor='lightgray'))
-        
-            plt.subplots_adjust(bottom=0.18, hspace=0.15, right=0.95, top=0.92)
+            
+            # Větší mezera dole pro lepší zobrazení popisků osy X
+            plt.subplots_adjust(bottom=0.16, hspace=0.0, right=0.95, top=0.92)
+            
+            # Odstranit černý obdélník na spodní straně grafu (čmáranice)
+            # Procházíme všechny objekty v grafu a odstraníme nechtěné prvky
+            for artist in fig.findobj():
+                # Odstranit nechtěné obdélníky a texty ve spodní části grafu
+                if isinstance(artist, matplotlib.patches.Rectangle):
+                    if artist.get_y() < 0.1 and artist.get_height() < 0.1:
+                        artist.set_visible(False)
+                        
+            # Explicitně vyčistit spodní část grafu
+            ax2.spines['bottom'].set_visible(True)
+            ax2.set_xlabel('')  # Odstranit popisek osy X pro spodní graf
 
             # Uložení
             plt.savefig(filename, dpi=150)
@@ -253,7 +305,12 @@ class ChartGenerator:
                                     label=f"Resistance {i+1}" if i==0 else None)
                 
                 plt.legend(loc='best')
-                plt.xticks(rotation=35)
+                
+                # Lepší formátování osy X
+                plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d.%m %H:%M'))
+                plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=6))
+                plt.xticks(rotation=35, ha='right')
+                
                 plt.tight_layout()
                 plt.savefig(filename, dpi=100)
                 plt.close()
