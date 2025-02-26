@@ -123,12 +123,14 @@ class ChartGenerator:
                     logger.info(f"Rendering support zone {i+1}: {s_min}-{s_max}")
                     
                     # Přidání obdélníku do grafu
-                    ax.axhspan(s_min, s_max, 
-                              color='#90EE90', 
-                              alpha=0.4, 
-                              zorder=0,
-                              edgecolor='#006400',
-                              linewidth=1.0)
+                    ax.axhspan(
+                        s_min, s_max, 
+                        facecolor='#90EE90', 
+                        alpha=0.4, 
+                        zorder=0,
+                        edgecolor='#006400',
+                        linewidth=1.0
+                    )
                     
                     # Přidání popisku
                     if i < 3:  # Max 3 popisky
@@ -146,12 +148,14 @@ class ChartGenerator:
                     logger.info(f"Rendering resistance zone {i+1}: {r_min}-{r_max}")
                     
                     # Přidání obdélníku do grafu
-                    ax.axhspan(r_min, r_max, 
-                              color='#FFB6C1', 
-                              alpha=0.4, 
-                              zorder=0,
-                              edgecolor='#8B0000',
-                              linewidth=1.0)
+                    ax.axhspan(
+                        r_min, r_max, 
+                        facecolor='#FFB6C1', 
+                        alpha=0.4, 
+                        zorder=0,
+                        edgecolor='#8B0000',
+                        linewidth=1.0
+                    )
                     
                     # Přidání popisku
                     if i < 3:  # Max 3 popisky
@@ -161,42 +165,31 @@ class ChartGenerator:
                                ha='right', va='center', fontweight='bold',
                                bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0))
 
-            # Dynamické formátování osy X podle specifikovaných timeframů
-            if timeframe == '5m':  
-                # Pro 5m (nejkratší timeframe) zobrazíme hodiny:minuty
-                if len(plot_data) > 48:
-                    locator = mdates.HourLocator(interval=4)  # Každé 4 hodiny
-                else:
-                    locator = mdates.HourLocator(interval=2)  # Každé 2 hodiny
-                formatter = mdates.DateFormatter('%H:%M')  # Pouze hodiny:minuty
-                
+            # Jednoduché nastavení časové osy
+            if timeframe == '5m':
+                # Pro 5m data: interval 4h
+                ax.xaxis.set_major_locator(mdates.HourLocator(interval=4))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
             elif timeframe == '30m':
-                # Pro 30m (intradenní) také zobrazíme hodiny:minuty, ale více rozestup
-                locator = mdates.HourLocator(interval=4)
-                formatter = mdates.DateFormatter('%H:%M')
-                
+                # Pro 30m data: interval 4h
+                ax.xaxis.set_major_locator(mdates.HourLocator(interval=4))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
             elif timeframe == '4h':
-                # Pro 4h (intradenní) zobrazíme i datum
-                locator = mdates.DayLocator()
-                formatter = mdates.DateFormatter('%d.%m')
-                
+                # Pro 4h data: denní interval
+                ax.xaxis.set_major_locator(mdates.DayLocator())
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m'))
             elif timeframe == '1d':
-                # Pro denní data zobrazíme jen datum
-                locator = mdates.WeekdayLocator(interval=1)
-                formatter = mdates.DateFormatter('%d.%m')
-                
+                # Pro 1d data: týdenní interval
+                ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m'))
             elif timeframe == '1w':
-                # Pro týdenní data zobrazíme datum ve formátu měsíc/rok
-                locator = mdates.MonthLocator()
-                formatter = mdates.DateFormatter('%m/%y')
-                
+                # Pro 1w data: měsíční interval
+                ax.xaxis.set_major_locator(mdates.MonthLocator())
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%y'))
             else:
-                # Pro ostatní nebo neznámé timeframy použijeme automatické určení
-                locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
-                formatter = mdates.DateFormatter('%d.%m')
-
-            ax.xaxis.set_major_locator(locator)
-            ax.xaxis.set_major_formatter(formatter)
+                # Pro jiné nebo neznámé timeframy
+                ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=4, maxticks=8))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m'))
             
             # Otočení a úprava popisků osy X
             plt.setp(ax.get_xticklabels(), rotation=35, ha='right', fontsize=8)
@@ -238,17 +231,6 @@ class ChartGenerator:
             ax2.tick_params(axis='y', labelsize=7)
             ax2.grid(False)
             ax2.set_facecolor('#f5f5f5')
-            
-            # Odstranění překrývajících se popisků
-            fig.canvas.draw()
-            # Máme-li hodně popisků, odstranit každý druhý pro lepší čitelnost
-            if len(ax.get_xticklabels()) > 6:
-                for ax in fig.axes:
-                    # Získáme aktuální pozice popisků
-                    labels = ax.get_xticklabels()
-                    for i, label in enumerate(labels):
-                        if i % 2 == 1:  # Odstranit každý druhý popisek
-                            label.set_visible(False)
 
             # Vodoznak a úpravy layoutu
             plt.figtext(0.01, 0.01, 
@@ -259,18 +241,6 @@ class ChartGenerator:
             
             # Větší mezera dole pro lepší zobrazení popisků osy X
             plt.subplots_adjust(bottom=0.16, hspace=0.0, right=0.95, top=0.92)
-            
-            # Odstranit černý obdélník na spodní straně grafu (čmáranice)
-            # Procházíme všechny objekty v grafu a odstraníme nechtěné prvky
-            for artist in fig.findobj():
-                # Odstranit nechtěné obdélníky a texty ve spodní části grafu
-                if isinstance(artist, matplotlib.patches.Rectangle):
-                    if artist.get_y() < 0.1 and artist.get_height() < 0.1:
-                        artist.set_visible(False)
-                        
-            # Explicitně vyčistit spodní část grafu
-            ax2.spines['bottom'].set_visible(True)
-            ax2.set_xlabel('')  # Odstranit popisek osy X pro spodní graf
 
             # Uložení
             plt.savefig(filename, dpi=150)
