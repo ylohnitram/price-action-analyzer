@@ -86,51 +86,51 @@ class PriceActionAnalyzer:
         return patterns
 
     def generate_multi_timeframe_analysis(self, symbol, dataframes):
-    """
-    Generuje multi-timeframe analýzu na základě dat z různých časových rámců.
-    Tato verze je upravena pro nezahrnování konkrétních vstupů a zaměření na zóny.
+        """
+        Generuje multi-timeframe analýzu na základě dat z různých časových rámců.
+        Tato verze je upravena pro nezahrnování konkrétních vstupů a zaměření na zóny.
     
-    Args:
-        symbol (str): Obchodní symbol
-        dataframes (dict): Slovník s DataFrame pro různé časové rámce
+        Args:
+            symbol (str): Obchodní symbol
+            dataframes (dict): Slovník s DataFrame pro různé časové rámce
         
-    Returns:
-        tuple: (analýza, support_zóny, resistance_zóny, scenáře)
-    """
-    patterns_by_tf = {}
-    for tf, df in dataframes.items():
-        patterns_by_tf[tf] = self.detect_patterns(df)
+        Returns:
+            tuple: (analýza, support_zóny, resistance_zóny, scenáře)
+        """
+        patterns_by_tf = {}
+        for tf, df in dataframes.items():
+            patterns_by_tf[tf] = self.detect_patterns(df)
 
-    timeframe_data = []
-    all_timeframes = ["1w", "1d", "4h"]
+        timeframe_data = []
+        all_timeframes = ["1w", "1d", "4h"]
     
-    for tf in all_timeframes:
-        if tf in dataframes:
-            df = dataframes[tf]
-            num_candles = 5 if tf in ['1w', '1d'] else (7 if tf == '4h' else 10)
+        for tf in all_timeframes:
+            if tf in dataframes:
+                df = dataframes[tf]
+                num_candles = 5 if tf in ['1w', '1d'] else (7 if tf == '4h' else 10)
             
-            tf_data = f"## Časový rámec: {tf}\n"
-            tf_data += f"Rozsah dat: {df.index[0]} až {df.index[-1]}\n"
-            tf_data += f"Počet svíček: {len(df)}\n"
-            tf_data += f"Posledních {num_candles} svíček:\n"
-            tf_data += f"{df[['open','high','low','close','volume']].tail(num_candles).to_markdown()}\n\n"
+                tf_data = f"## Časový rámec: {tf}\n"
+                tf_data += f"Rozsah dat: {df.index[0]} až {df.index[-1]}\n"
+                tf_data += f"Počet svíček: {len(df)}\n"
+                tf_data += f"Posledních {num_candles} svíček:\n"
+                tf_data += f"{df[['open','high','low','close','volume']].tail(num_candles).to_markdown()}\n\n"
             
-            patterns = patterns_by_tf[tf]
-            if patterns:
-                tf_data += f"Poslední patterny:\n"
-                for pattern in patterns[-8:]:  # Zobrazíme více patternů pro lepší analýzu
-                    tf_data += f"- {pattern[0]} na úrovni {pattern[2]:.2f}-{pattern[3]:.2f} ({pattern[1]})\n"
+                patterns = patterns_by_tf[tf]
+                if patterns:
+                    tf_data += f"Poslední patterny:\n"
+                    for pattern in patterns[-8:]:  # Zobrazíme více patternů pro lepší analýzu
+                        tf_data += f"- {pattern[0]} na úrovni {pattern[2]:.2f}-{pattern[3]:.2f} ({pattern[1]})\n"
             
-            timeframe_data.append(tf_data)
+                timeframe_data.append(tf_data)
 
-    # Získáme aktuální cenu z posledního dataframe
-    latest_price = None
-    if '1d' in dataframes:
-        latest_price = dataframes['1d']['close'].iloc[-1]
-    elif '4h' in dataframes:
-        latest_price = dataframes['4h']['close'].iloc[-1]
+        # Získáme aktuální cenu z posledního dataframe
+        latest_price = None
+        if '1d' in dataframes:
+            latest_price = dataframes['1d']['close'].iloc[-1]
+        elif '4h' in dataframes:
+            latest_price = dataframes['4h']['close'].iloc[-1]
 
-    prompt = f"""Jste senior trader specializující se na price action analýzu. Analyzujte data s důrazem na všechny časové rámce, bez poskytování konkrétních vstupních bodů.
+        prompt = f"""Jste senior trader specializující se na price action analýzu. Analyzujte data s důrazem na všechny časové rámce, bez poskytování konkrétních vstupních bodů.
 
 Symbol: {symbol}
 Aktuální cena: {latest_price:.2f}
@@ -174,26 +174,26 @@ DŮLEŽITÉ:
 - Pouze konkrétní informace, žádný vágní text
 - Nepoužívejte žádná varování ani 'AI' fráze (například vyhněte se 'vždy si ověřte aktuální tržní podmínky')"""
 
-    try:
-        response = self.client.chat.completions.create(
-            model="gpt-4-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            max_tokens=3000
-        )
-        analysis = response.choices[0].message.content
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=3000
+            )
+            analysis = response.choices[0].message.content
         
-        # Extrahování zón supportů a resistancí
-        support_zones = self.extract_zones_from_analysis(analysis, "support")
-        resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
+            # Extrahování zón supportů a resistancí
+            support_zones = self.extract_zones_from_analysis(analysis, "support")
+            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
         
-        # Extrahování scénářů pro vizualizaci
-        scenarios = self.extract_scenarios_from_analysis(analysis, latest_price)
+            # Extrahování scénářů pro vizualizaci
+            scenarios = self.extract_scenarios_from_analysis(analysis, latest_price)
         
-        return analysis, support_zones, resistance_zones, scenarios
+            return analysis, support_zones, resistance_zones, scenarios
         
-    except Exception as e:
-        raise Exception(f"Chyba při generování multi-timeframe analýzy: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Chyba při generování multi-timeframe analýzy: {str(e)}")
 
     def process_data(self, klines_data):
         """
