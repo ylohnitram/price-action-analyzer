@@ -130,7 +130,7 @@ class PriceActionAnalyzer:
         elif '4h' in dataframes:
             latest_price = dataframes['4h']['close'].iloc[-1]
 
-        prompt = f"""Jste senior trader specializující se na price action analýzu. Analyzujte data s důrazem na všechny časové rámce, ale bez poskytování konkrétních vstupních bodů.
+        prompt = f"""Jste senior trader specializující se na price action analýzu. Analyzujte data s důrazem na všechny časové rámce, bez poskytování konkrétních vstupních bodů.
 
 Symbol: {symbol}
 Aktuální cena: {latest_price:.2f}
@@ -154,7 +154,11 @@ Aktuální cena: {latest_price:.2f}
 
 ## 3. 💡 MOŽNÉ SCÉNÁŘE DALŠÍHO VÝVOJE
 - Bullish scénář (popište podmínky, spouštěče a potenciální cílové úrovně)
+  - DŮLEŽITÉ: Uveďte konkrétní cenové cíle ve formátu čísla (např. 92000), ne jako rozsah
+  - Popište, jak by cena mohla narážet na klíčové rezistence během své cesty nahoru
 - Bearish scénář (popište podmínky, spouštěče a potenciální cílové úrovně) 
+  - DŮLEŽITÉ: Uveďte konkrétní cenové cíle ve formátu čísla (např. 84000), ne jako rozsah
+  - Popište, jak by cena mohla narážet na klíčové supporty během své cesty dolů
 - Neutrální scénář (konsolidace nebo range bound chování)
 
 ## 4. ⚠️ VÝZNAMNÉ ÚROVNĚ K SLEDOVÁNÍ
@@ -202,301 +206,109 @@ Formát:
         """
         scenarios = []
         
-        # Hledání bullish scénáře a ceny
-        bullish_patterns = [
-            r"[Bb]ullish.*?([0-9,.-]+)",
-            r"[Vv]zhůru.*?([0-9,.-]+)",
-            r"[Rr]ůst.*?([0-9,.-]+)",
-            r"[Cc]íl.*?([0-9,.-]+)"
-        ]
+        # Hledat sekci "MOŽNÉ SCÉNÁŘE DALŠÍHO VÝVOJE" nebo podobnou
+        scenario_section = re.search(r'(MOŽNÉ SCÉNÁŘE|SCÉNÁŘE|SCENÁŘE|VÝVOJE)(.*?)(##|\Z)', 
+                                    analysis, re.DOTALL | re.IGNORECASE)
         
-        # Hledání bearish scénáře a ceny
-        bearish_patterns = [
-            r"[Bb]earish.*?([0-9,.-]+)",
-            r"[Pp]okles.*?([0-9,.-]+)",
-            r"[Pp]ád.*?([0-9,.-]+)",
-            r"[Dd]olů.*?([0-9,.-]+)"
-        ]
-        
-        # Hledání cen v bullish scénáři
-        bullish_targets = []
-        for pattern in bullish_patterns:
-            matches = re.findall(pattern, analysis)
-            for match in matches:
+        if scenario_section:
+            scenario_text = scenario_section.group(2)
+            
+            # Hledání bullish scénáře a ceny - přesnější pattern zaměřený na číselné cíle
+            bullish_target = None
+            bullish_section = re.search(r'[Bb]ullish.*?(\d{4,6})', scenario_text)
+            if bullish_section:
                 try:
-                    price = float(match.replace(',', '.'))
-                    if price > current_price * 1.005:  # Musí být aspoň 0.5% nad aktuální cenou
-                        bullish_targets.append(price)
+                    bullish_target = float(bullish_section.group(1).replace(',', '.'))
+                    if bullish_target > current_price * 1.005:  # Musí být aspoň 0.5% nad aktuální cenou
+                        scenarios.append(('bullish', bullish_target))
                 except (ValueError, IndexError):
-                    continue
-        
-        # Hledání cen v bearish scénáři
-        bearish_targets = []
-        for pattern in bearish_patterns:
-            matches = re.findall(pattern, analysis)
-            for match in matches:
+                    pass
+            
+            # Pokud nebyl nalezen konkrétní cíl, hledej i v jiných formátech
+            if not bullish_target:
+                bullish_patterns = [
+                    r"[Bb]ullish.*?(\d{4,6})",
+                    r"[Vv]zhůru.*?(\d{4,6})",
+                    r"[Rr]ůst.*?(\d{4,6})",
+                    r"[Cc]íl.*?(\d{4,6})"
+                ]
+                
+                for pattern in bullish_patterns:
+                    matches = re.findall(pattern, scenario_text)
+                    for match in matches:
+                        try:
+                            price = float(match.replace(',', '.'))
+                            if price > current_price * 1.005:  # Musí být aspoň 0.5% nad aktuální cenou
+                                scenarios.append(('bullish', price))
+                                break
+                        except (ValueError, IndexError):
+                            continue
+                    if len(scenarios) > 0 and scenarios[-1][0] == 'bullish':
+                        break
+            
+            # Hledání bearish scénáře a ceny - přesnější pattern zaměřený na číselné cíle
+            bearish_target = None
+            bearish_section = re.search(r'[Bb]earish.*?(\d{4,6})', scenario_text)
+            if bearish_section:
                 try:
-                    price = float(match.replace(',', '.'))
-                    if price < current_price * 0.995:  # Musí být aspoň 0.5% pod aktuální cenou
-                        bearish_targets.append(price)
+                    bearish_target = float(bearish_section.group(1).replace(',', '.'))
+                    if bearish_target < current_price * 0.995:  # Musí být aspoň 0.5% pod aktuální cenou
+                        scenarios.append(('bearish', bearish_target))
                 except (ValueError, IndexError):
-                    continue
+                    pass
+            
+            # Pokud nebyl nalezen konkrétní cíl, hledej i v jiných formátech
+            if not bearish_target:
+                bearish_patterns = [
+                    r"[Bb]earish.*?(\d{4,6})",
+                    r"[Pp]okles.*?(\d{4,6})",
+                    r"[Pp]ád.*?(\d{4,6})",
+                    r"[Dd]olů.*?(\d{4,6})"
+                ]
+                
+                for pattern in bearish_patterns:
+                    matches = re.findall(pattern, scenario_text)
+                    for match in matches:
+                        try:
+                            price = float(match.replace(',', '.'))
+                            if price < current_price * 0.995:  # Musí být aspoň 0.5% pod aktuální cenou
+                                scenarios.append(('bearish', price))
+                                break
+                        except (ValueError, IndexError):
+                            continue
+                    if len(scenarios) > 0 and scenarios[-1][0] == 'bearish':
+                        break
         
-        # Přidání bullish scénáře (pokud existuje)
-        if bullish_targets:
-            # Seřadíme a vybereme nejvyšší cíl a jeden uprostřed
-            bullish_targets.sort()
-            mid_index = len(bullish_targets) // 2
-            scenarios.append(('bullish', bullish_targets[-1]))  # Nejvyšší cíl
-            if len(bullish_targets) > 2 and bullish_targets[mid_index] != bullish_targets[-1]:
-                scenarios.append(('bullish_mid', bullish_targets[mid_index]))  # Cíl uprostřed
+        # Pokud jsme nenašli žádné scénáře, zkusíme prohledat celý text
+        if not scenarios:
+            # Obecný pattern pro nalezení cenových hodnot
+            price_pattern = r'\b(\d{4,6})\b'
+            prices = re.findall(price_pattern, analysis)
+            
+            prices = [float(p) for p in prices if p.isdigit()]
+            prices = sorted(list(set(prices)))  # Deduplikace a seřazení
+            
+            # Identifikace bullish a bearish cílů na základě aktuální ceny
+            bullish_target = None
+            bearish_target = None
+            
+            for price in prices:
+                if price > current_price * 1.05:  # 5% nad aktuální cenou
+                    if not bullish_target or price > bullish_target:
+                        bullish_target = price
+                elif price < current_price * 0.95:  # 5% pod aktuální cenou
+                    if not bearish_target or price < bearish_target:
+                        bearish_target = price
+            
+            if bullish_target:
+                scenarios.append(('bullish', bullish_target))
+            if bearish_target:
+                scenarios.append(('bearish', bearish_target))
         
-        # Přidání bearish scénáře (pokud existuje)
-        if bearish_targets:
-            # Seřadíme a vybereme nejnižší cíl a jeden uprostřed
-            bearish_targets.sort()
-            mid_index = len(bearish_targets) // 2
-            scenarios.append(('bearish', bearish_targets[0]))  # Nejnižší cíl
-            if len(bearish_targets) > 2 and bearish_targets[mid_index] != bearish_targets[0]:
-                scenarios.append(('bearish_mid', bearish_targets[mid_index]))  # Cíl uprostřed
+        # Logování nalezených scénářů pro ladění
+        logger.info(f"Nalezené scénáře: {scenarios}")
         
         return scenarios
-
-    def extract_zones_from_analysis(self, analysis, zone_type):
-        """
-        Extrahuje zóny supportů nebo resistancí z textu analýzy.
-        
-        Args:
-            analysis (str): Text analýzy
-            zone_type (str): Typ zóny ('support' nebo 'resistance')
-            
-        Returns:
-            list: Seznam zón ve formátu [(min1, max1), (min2, max2), ...]
-        """
-        zones = []
-        
-        # Různé možné variace názvů v textu
-        if zone_type.lower() == "support":
-            patterns = [
-                r"[Ss]upportní zón[ay]:\s*([0-9,.-]+)-([0-9,.-]+)",
-                r"[Ss]upport[ní]{0,2} zón[ay]?.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Ss]upport.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Bb]ullish OB.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Bb]ullish FVG.*?([0-9,.-]+)-([0-9,.-]+)"
-            ]
-        else:  # resistance
-            patterns = [
-                r"[Rr]esistenční zón[ay]:\s*([0-9,.-]+)-([0-9,.-]+)",
-                r"[Rr]esisten[cč][en]í zón[ay]?.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Rr]esisten[cč][en].*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Bb]earish OB.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Bb]earish FVG.*?([0-9,.-]+)-([0-9,.-]+)"
-            ]
-        
-        for pattern in patterns:
-            matches = re.findall(pattern, analysis)
-            for match in matches:
-                try:
-                    min_value = float(match[0].replace(',', '.'))
-                    max_value = float(match[1].replace(',', '.'))
-                    zones.append((min_value, max_value))
-                except (ValueError, IndexError):
-                    continue
-        
-        # Pokud nenajdeme zóny pomocí rozsahů, zkusíme hledat konkrétní hodnoty
-        if not zones:
-            if zone_type.lower() == "support":
-                value_pattern = r"[Ss]upport.*?([0-9,.-]+)"
-            else:
-                value_pattern = r"[Rr]esisten[cč][en].*?([0-9,.-]+)"
-            
-            matches = re.findall(value_pattern, analysis)
-            for match in matches:
-                try:
-                    value = float(match.replace(',', '.'))
-                    # Vytvoříme z konkrétní hodnoty malou zónu (±0.5%)
-                    margin = value * 0.005
-                    zones.append((value - margin, value + margin))
-                except ValueError:
-                    continue
-        
-        # Omezení počtu zón pro lepší přehlednost a výkon (max 8 - upraveno pro zahrnutí více úrovní)
-        if len(zones) > 8:
-            zones = zones[:8]
-            
-        return zones
-
-    # Ponecháváme ostatní metody beze změny...
-    def generate_intraday_analysis(self, symbol, dataframes):
-        """
-        Generuje intraday analýzu zaměřenou na kratší časové rámce.
-        
-        Args:
-            symbol (str): Obchodní symbol
-            dataframes (dict): Slovník s DataFrame pro různé časové rámce
-            
-        Returns:
-            tuple: (analýza, support_zóny, resistance_zóny)
-        """
-        # Detekce patternů pro každý časový rámec
-        patterns_by_tf = {}
-        for tf, df in dataframes.items():
-            patterns_by_tf[tf] = self.detect_patterns(df)
-
-        # Příprava dat pro prompt
-        timeframe_data = []
-        intraday_timeframes = ["4h", "30m", "5m"]
-        
-        for tf in intraday_timeframes:
-            if tf in dataframes:
-                df = dataframes[tf]
-                num_candles = 7 if tf == '4h' else (10 if tf == '30m' else 15)
-                
-                tf_data = f"## Časový rámec: {tf}\n"
-                tf_data += f"Rozsah dat: {df.index[0]} až {df.index[-1]}\n"
-                tf_data += f"Počet svíček: {len(df)}\n"
-                tf_data += f"Posledních {num_candles} svíček:\n"
-                tf_data += f"{df[['open','high','low','close','volume']].tail(num_candles).to_markdown()}\n\n"
-                
-                patterns = patterns_by_tf[tf]
-                if patterns:
-                    tf_data += f"Poslední patterny:\n"
-                    patt_count = 5 if tf == '4h' else (7 if tf == '30m' else 10)
-                    for pattern in patterns[-patt_count:]:
-                        tf_data += f"- {pattern[0]} na úrovni {pattern[2]:.2f}-{pattern[3]:.2f} ({pattern[1]})\n"
-                
-                timeframe_data.append(tf_data)
-
-        prompt = f"""Jste profesionální day trader. Vytvořte stručnou intraday analýzu pro dnešní seanci.
-
-Symbol: {symbol}
-# KLÍČOVÉ ÚROVNĚ
-{''.join(timeframe_data)}
-
-## 🕵️♂️ 4H KONTEXT
-- Trendový směr
-- Nejdůležitější supportní zóny (definujte jako rozsah cen, např. 86000-86200)
-- Nejdůležitější resistenční zóny (definujte jako rozsah cen, např. 89400-89600)
-
-## 📈 30M SETUPY
-- Klíčové zóny pro dnešek:
-  - Supportní zóny: definujte 2-3 klíčové zóny s rozsahem
-  - Resistenční zóny: definujte 2-3 klíčové zóny s rozsahem
-- Potenciální směr pohybu
-- Ideální vstupní zóny
-
-## ⚡ KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI
-- Uveďte pouze obchodní příležitosti s RRR 2:1 nebo lepším
-- Uveďte 1-2 jasné obchodní příležitosti v tomto formátu:
-
-Pokud [podmínka], pak:
-Pozice: [LONG/SHORT]
-Vstup: [přesná cenová úroveň]
-SL: [přesná cenová úroveň]
-TP1: [přesná cenová úroveň] (50%)
-TP2: [přesná cenová úroveň] (50%)
-RRR: [přesný poměr risk/reward, např. 2.5:1]
-Časová platnost: [konkrétní časový údaj]
-
-- Pokud je jedna z variant (LONG/SHORT) mnohem méně pravděpodobná vzhledem k tržnímu kontextu, uveďte pouze tu pravděpodobnější variantu
-- NEZAHRNUJTE žádné závěrečné shrnutí ani varování
-
-Formát:
-- Stručné, přehledné odrážky
-- Pouze konkrétní informace, žádný vágní text
-- Nepoužívejte žádná varování ani 'AI' fráze (například vyhněte se 'vždy si ověřte aktuální tržní podmínky')
-- Časové okno: {datetime.now().strftime("%H:%M")}-{datetime.now().replace(hour=22, minute=0).strftime("%H:%M")}"""
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                max_tokens=2500
-            )
-            analysis = response.choices[0].message.content
-            
-            # Extrahování zón supportů a resistancí
-            support_zones = self.extract_zones_from_analysis(analysis, "support")
-            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
-            
-            return analysis, support_zones, resistance_zones
-            
-        except Exception as e:
-            raise Exception(f"Chyba při generování intraday analýzy: {str(e)}")
-
-    def generate_analysis(self, symbol, df, patterns=None):
-        """
-        Generuje analýzu na základě historických dat a detekovaných patternů.
-        
-        Args:
-            symbol (str): Obchodní symbol
-            df (pandas.DataFrame): DataFrame s OHLCV daty
-            patterns (list, optional): Seznam detekovaných patternů
-            
-        Returns:
-            tuple: (analýza, support_zóny, resistance_zóny)
-        """
-        if patterns is None:
-            patterns = self.detect_patterns(df)
-        
-        last_5_patterns = patterns[-5:] if patterns else []
-
-        prompt = f"""Jste profesionální trader specializující se na čistou price action. Analyzujte následující data:
-Symbol: {symbol}
-Časový rámec: {df.index[-1] - df.index[-2] if len(df) > 1 else 'neznámý'}
-Posledních 10 svíček:
-{df[['open','high','low','close','volume']].tail(10).to_markdown()}
-
-Detekované patterny:
-{last_5_patterns}
-
-Vytvořte analýzu v češtině se zaměřením na:
-1. Trendový kontext a struktura trhu (3-4 body)
-2. Klíčové cenové zóny:
-   - Supportní zóny (definujte jako rozsahy cen, např. 86000-86200)
-   - Resistenční zóny (definujte jako rozsahy cen, např. 89400-89600)
-3. Vztah mezi cenou a objemem
-
-4. KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI:
-- Uveďte pouze obchodní příležitosti s RRR 2:1 nebo lepším
-- Uveďte 1-2 jasné obchodní příležitosti v tomto formátu:
-
-Pokud [podmínka], pak:
-Pozice: [LONG/SHORT]
-Vstup: [přesná cenová úroveň]
-SL: [přesná cenová úroveň]
-TP1: [přesná cenová úroveň] (50%)
-TP2: [přesná cenová úroveň] (50%)
-RRR: [přesný poměr risk/reward, např. 2.5:1]
-Platnost: [konkrétní časový údaj]
-
-- Pokud je jedna z variant (LONG/SHORT) mnohem méně pravděpodobná vzhledem k tržnímu kontextu, uveďte pouze tu pravděpodobnější variantu
-- NEZAHRNUJTE žádné závěrečné shrnutí ani varování
-
-Formát:
-- Stručné odrážky
-- Pouze konkrétní informace, žádný vágní text
-- Nepoužívejte žádná varování ani 'AI' fráze (například vyhněte se 'vždy si ověřte aktuální tržní podmínky')
-- Časové razítko: {datetime.now().strftime("%Y-%m-%d %H:%M")} UTC"""
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                max_tokens=2000
-            )
-            analysis = response.choices[0].message.content
-            
-            # Extrahování zón supportů a resistancí
-            support_zones = self.extract_zones_from_analysis(analysis, "support")
-            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
-            
-            return analysis, support_zones, resistance_zones
-            
-        except Exception as e:
-            raise Exception(f"Chyba při generování analýzy: {str(e)}")
 
     def process_data(self, klines_data):
         """
@@ -520,6 +332,70 @@ Formát:
             df[col] = df[col].astype(float)
            
         return df
+
+    def extract_zones_from_analysis(self, analysis, zone_type):
+        """
+        Extrahuje zóny supportů nebo resistancí z textu analýzy.
+        
+        Args:
+            analysis (str): Text analýzy
+            zone_type (str): Typ zóny ('support' nebo 'resistance')
+        
+        Returns:
+            list: Seznam zón ve formátu [(min1, max1), (min2, max2), ...]
+        """
+        zones = []
+    
+        # Různé možné variace názvů v textu
+        if zone_type.lower() == "support":
+            patterns = [
+                r"[Ss]upportní zón[ay]:\s*([0-9,.-]+)-([0-9,.-]+)",
+                r"[Ss]upport[ní]{0,2} zón[ay]?.*?([0-9,.-]+)-([0-9,.-]+)",
+                r"[Ss]upport.*?([0-9,.-]+)-([0-9,.-]+)",
+                r"[Bb]ullish OB.*?([0-9,.-]+)-([0-9,.-]+)",
+                r"[Bb]ullish FVG.*?([0-9,.-]+)-([0-9,.-]+)"
+            ]
+        else:  # resistance
+            patterns = [
+                r"[Rr]esistenční zón[ay]:\s*([0-9,.-]+)-([0-9,.-]+)",
+                r"[Rr]esisten[cč][en]í zón[ay]?.*?([0-9,.-]+)-([0-9,.-]+)",
+                r"[Rr]esisten[cč][en].*?([0-9,.-]+)-([0-9,.-]+)",
+                r"[Bb]earish OB.*?([0-9,.-]+)-([0-9,.-]+)",
+                r"[Bb]earish FVG.*?([0-9,.-]+)-([0-9,.-]+)"
+            ]
+    
+        for pattern in patterns:
+            matches = re.findall(pattern, analysis)
+            for match in matches:
+                try:
+                    min_value = float(match[0].replace(',', '.'))
+                    max_value = float(match[1].replace(',', '.'))
+                    zones.append((min_value, max_value))
+                except (ValueError, IndexError):
+                    continue
+    
+        # Pokud nenajdeme zóny pomocí rozsahů, zkusíme hledat konkrétní hodnoty
+        if not zones:
+            if zone_type.lower() == "support":
+                value_pattern = r'[Ss]upport.*?([0-9,.-]+)'
+            else:
+                value_pattern = r'[Rr]esisten[cč][en].*?([0-9,.-]+)'
+        
+            matches = re.findall(value_pattern, analysis)
+            for match in matches:
+                try:
+                    value = float(match.replace(',', '.'))
+                    # Vytvoříme z konkrétní hodnoty malou zónu (±0.5%)
+                    margin = value * 0.005
+                    zones.append((value - margin, value + margin))
+                except ValueError:
+                    continue
+    
+        # Omezení počtu zón pro lepší přehlednost a výkon (max 8 - upraveno pro zahrnutí více úrovní)
+        if len(zones) > 8:
+            zones = zones[:8]
+        
+        return zones
 
     def process_multi_timeframe_data(self, multi_tf_data):
         """

@@ -1,5 +1,2 @@
-#!/usr/bin/env python3
-
-"""
-Moduly pro vizualizaci dat a generování grafů.
-"""
+# Exportování hlavních tříd pro snadný import
+from .chart_generator import ChartGenerator
