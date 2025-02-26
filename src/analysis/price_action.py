@@ -400,7 +400,7 @@ Formát:
             
         return zones
 
-    def generate_chart(self, df, support_zones, resistance_zones, symbol, filename=None, days_to_show=2, hours_to_show=None, timeframe=None):
+def generate_chart(self, df, support_zones, resistance_zones, symbol, filename=None, days_to_show=2, hours_to_show=None, timeframe=None):
     """
     Generuje svíčkový graf s naznačenými zónami a scénáři, optimalizováno pro výkon.
     
