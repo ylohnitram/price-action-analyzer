@@ -41,12 +41,6 @@ class ChartGenerator:
         logger.info(f"Support zones: {support_zones}")
         logger.info(f"Resistance zones: {resistance_zones}")
 
-        # Ověření dat zón pro lepší diagnostiku
-        if not support_zones:
-            logger.warning("No support zones detected for display")
-        if not resistance_zones:
-            logger.warning("No resistance zones detected for display")
-
         # Nastavení cesty a adresáře
         charts_dir = "charts"
         os.makedirs(charts_dir, exist_ok=True)
@@ -84,56 +78,7 @@ class ChartGenerator:
         })
 
         try:
-            # Příprava dodatečných prvků pro vykreslení zón
-            support_colors = []
-            resistance_colors = []
-            rect_collections = []
-            
-            # Zpracování zón podpory
-            if support_zones:
-                for i, (s_min, s_max) in enumerate(support_zones[:5]):
-                    if np.isnan(s_min) or np.isnan(s_max):
-                        continue
-                    logger.info(f"Processing support zone {i+1}: {s_min}-{s_max}")
-                    
-                    # Vytvoření pole bodů pro supportní zónu
-                    support_rect = dict(
-                        y1=s_min, 
-                        y2=s_max, 
-                        facecolor='#90EE90', 
-                        edgecolor='#006400',
-                        alpha=0.6,
-                        zorder=0
-                    )
-                    support_colors.append(support_rect)
-            
-            # Zpracování rezistenčních zón
-            if resistance_zones:
-                for i, (r_min, r_max) in enumerate(resistance_zones[:5]):
-                    if np.isnan(r_min) or np.isnan(r_max):
-                        continue
-                    logger.info(f"Processing resistance zone {i+1}: {r_min}-{r_max}")
-                    
-                    # Vytvoření pole bodů pro rezistenční zónu
-                    resistance_rect = dict(
-                        y1=r_min, 
-                        y2=r_max, 
-                        facecolor='#FFB6C1', 
-                        edgecolor='#8B0000',
-                        alpha=0.6,
-                        zorder=0
-                    )
-                    resistance_colors.append(resistance_rect)
-                    
-            # Sloučení všech zón
-            rect_collections = support_colors + resistance_colors
-            
-            # Vytvoření aditec pro MPLFinance
-            aditec = []
-            if rect_collections:
-                aditec.append(mpf.make_addplot([], type='rect', plot_ranges=rect_collections))
-
-            # Úprava stylu pro lepší viditelnost zón
+            # Úprava stylu pro lepší viditelnost
             mc = mpf.make_marketcolors(
                 up='#00a061',           # Zelená svíčka nahoru
                 down='#eb4d5c',         # Červená svíčka dolů
@@ -151,7 +96,7 @@ class ChartGenerator:
                 facecolor='white'
             )
 
-            # Vytvoření základního grafu se svíčkami a zónami
+            # Vytvoření svíčkového grafu nejprve bez zón
             fig, axes = mpf.plot(
                 plot_data,
                 type='candle',
@@ -161,15 +106,61 @@ class ChartGenerator:
                 volume=True,
                 figsize=(12, 8),
                 returnfig=True,
-                panel_ratios=(4, 1),
+                panel_ratios=(4,1),
                 tight_layout=False,
-                addplot=aditec if aditec else None,
                 warn_too_much_data=5000
             )
 
-            ax = axes[0]
-            ax2 = axes[2] if len(axes) > 2 else axes[1]
+            ax = axes[0]  # Hlavní osa pro ceny
+            ax2 = axes[2] if len(axes) > 2 else axes[1]  # Osa pro objem
             
+            # Přídaní zón přímo do grafu po jeho vytvoření
+            # Zóny supportů
+            if support_zones:
+                for i, (s_min, s_max) in enumerate(support_zones[:5]):
+                    if np.isnan(s_min) or np.isnan(s_max):
+                        continue
+                    logger.info(f"Rendering support zone {i+1}: {s_min}-{s_max}")
+                    
+                    # Přidání obdélníku do grafu
+                    ax.axhspan(s_min, s_max, 
+                              color='#90EE90', 
+                              alpha=0.4, 
+                              zorder=0,
+                              edgecolor='#006400',
+                              linewidth=1.0)
+                    
+                    # Přidání popisku
+                    if i < 3:  # Max 3 popisky
+                        mid_point = (s_min + s_max) / 2
+                        ax.text(plot_data.index[0], mid_point, 
+                               f"S{i+1}", fontsize=8, color='darkgreen', 
+                               ha='right', va='center', fontweight='bold',
+                               bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0))
+            
+            # Zóny resistancí
+            if resistance_zones:
+                for i, (r_min, r_max) in enumerate(resistance_zones[:5]):
+                    if np.isnan(r_min) or np.isnan(r_max):
+                        continue
+                    logger.info(f"Rendering resistance zone {i+1}: {r_min}-{r_max}")
+                    
+                    # Přidání obdélníku do grafu
+                    ax.axhspan(r_min, r_max, 
+                              color='#FFB6C1', 
+                              alpha=0.4, 
+                              zorder=0,
+                              edgecolor='#8B0000',
+                              linewidth=1.0)
+                    
+                    # Přidání popisku
+                    if i < 3:  # Max 3 popisky
+                        mid_point = (r_min + r_max) / 2
+                        ax.text(plot_data.index[0], mid_point, 
+                               f"R{i+1}", fontsize=8, color='darkred', 
+                               ha='right', va='center', fontweight='bold',
+                               bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0))
+
             # Dynamické formátování osy X
             if timeframe in ['5m', '15m', '30m']:
                 locator = mdates.HourLocator(interval=2)
@@ -209,42 +200,10 @@ class ChartGenerator:
                 # Rozšířit rozsah lehce pro zahrnutí všech zón
                 y_min = np.min(combined_data) * 0.998
                 y_max = np.max(combined_data) * 1.002
-            else:
-                y_min = np.min(price_lows) * 0.998
-                y_max = np.max(price_highs) * 1.002
-            
-            # Explicitně nastavit rozsah osy Y, aby byly vidět všechny zóny
-            logger.info(f"Setting Y-axis range to: {y_min} - {y_max}")
-            ax.set_ylim(y_min, y_max)
-
-            # Přidat popisky zón
-            try:
-                # Získání časového rozsahu pro umístění popisků
-                start_x = mdates.date2num(plot_data.index[0])
                 
-                # Přidání popisků supportních zón
-                if support_zones:
-                    for i, (s_min, s_max) in enumerate(support_zones[:3]):  # Omezení na 3 popisky
-                        if np.isnan(s_min) or np.isnan(s_max):
-                            continue
-                        mid_point = (s_min + s_max) / 2
-                        ax.text(start_x, mid_point, 
-                               f"S{i+1}", fontsize=8, color='darkgreen', 
-                               ha='right', va='center', fontweight='bold',
-                               bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0))
-
-                # Přidání popisků rezistenčních zón
-                if resistance_zones:
-                    for i, (r_min, r_max) in enumerate(resistance_zones[:3]):  # Omezení na 3 popisky
-                        if np.isnan(r_min) or np.isnan(r_max):
-                            continue
-                        mid_point = (r_min + r_max) / 2
-                        ax.text(start_x, mid_point, 
-                               f"R{i+1}", fontsize=8, color='darkred', 
-                               ha='right', va='center', fontweight='bold',
-                               bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0))
-            except Exception as label_error:
-                logger.warning(f"Nepovedlo se přidat popisky zón: {str(label_error)}")
+                # Explicitně nastavit rozsah osy Y
+                logger.info(f"Setting Y-axis range to: {y_min} - {y_max}")
+                ax.set_ylim(y_min, y_max)
 
             # Úprava volumenu
             ax2.set_ylabel('Volume', fontsize=8)
@@ -270,89 +229,37 @@ class ChartGenerator:
         except Exception as e:
             logger.error(f"Chyba generování grafu: {str(e)}")
             try:
-                # Fallback: Kombinovaný graf se svíčkami a čárami pro zóny
-                from matplotlib.finance import candlestick_ohlc
+                # Záložní řešení - jednoduchý graf s čarami
+                plt.figure(figsize=(10, 6))
+                plt.plot(plot_data.index, plot_data['close'], linewidth=1.5, color='navy')
+                plt.title(f"{symbol} ({timeframe}) - Price Action Analysis")
+                plt.grid(True, alpha=0.3)
                 
-                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), gridspec_kw={'height_ratios': [3, 1]})
-                
-                # Převedení datetime indexu na čísla pro candlestick
-                dates = mdates.date2num(plot_data.index.to_pydatetime())
-                ohlc = np.column_stack((dates, 
-                                        plot_data['open'].values,
-                                        plot_data['high'].values, 
-                                        plot_data['low'].values, 
-                                        plot_data['close'].values))
-                
-                # Vykreslení svíček
-                candlestick_ohlc(ax1, ohlc, width=0.6, colorup='green', colordown='red')
-                
-                # Formátování osy X
-                ax1.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m'))
-                ax1.set_title(f"{symbol} ({timeframe}) - Price Action Analysis")
-                
-                # Přidání zón podpory a rezistence
+                # Horizontální čáry pro zóny
                 if support_zones:
                     for i, (s_min, s_max) in enumerate(support_zones[:3]):
                         if np.isnan(s_min) or np.isnan(s_max):
                             continue
                         mid = (s_min + s_max) / 2
-                        ax1.axhspan(s_min, s_max, alpha=0.3, color='green', label=f"Support {i+1}" if i==0 else "")
+                        plt.axhspan(s_min, s_max, alpha=0.3, color='green', 
+                                    label=f"Support {i+1}" if i==0 else None)
                 
                 if resistance_zones:
                     for i, (r_min, r_max) in enumerate(resistance_zones[:3]):
                         if np.isnan(r_min) or np.isnan(r_max):
                             continue
                         mid = (r_min + r_max) / 2
-                        ax1.axhspan(r_min, r_max, alpha=0.3, color='red', label=f"Resistance {i+1}" if i==0 else "")
+                        plt.axhspan(r_min, r_max, alpha=0.3, color='red',
+                                    label=f"Resistance {i+1}" if i==0 else None)
                 
-                # Objem
-                ax2.bar(dates, plot_data['volume'].values, width=0.6, 
-                       color=np.where(plot_data['close'].values >= plot_data['open'].values, 'green', 'red'))
-                ax2.set_ylabel('Volume')
-                
-                # Sdílená osa X
-                fig.autofmt_xdate()
-                
-                # Přidání legendy
-                ax1.legend(loc='best')
-                
+                plt.legend(loc='best')
+                plt.xticks(rotation=35)
                 plt.tight_layout()
-                plt.savefig(filename, dpi=150)
-                plt.close(fig)
-                logger.info(f"Záložní graf uložen: {filename}")
+                plt.savefig(filename, dpi=100)
+                plt.close()
+                logger.info(f"Jednoduchý záložní graf uložen: {filename}")
                 return filename
                 
-            except Exception as fallback_error:
-                # Nejjednodušší záložní řešení - pouze čárový graf
-                try:
-                    plt.figure(figsize=(10, 6))
-                    plt.plot(plot_data.index, plot_data['close'], linewidth=1.5, color='navy')
-                    plt.title(f"{symbol} ({timeframe}) - Price Action Analysis")
-                    plt.grid(True, alpha=0.3)
-                    
-                    # Horizontální čáry pro zóny
-                    if support_zones:
-                        for i, (s_min, s_max) in enumerate(support_zones[:3]):
-                            if np.isnan(s_min) or np.isnan(s_max):
-                                continue
-                            mid = (s_min + s_max) / 2
-                            plt.axhline(y=mid, color='green', linestyle='--', alpha=0.5, 
-                                       label=f"Support {i+1}" if i==0 else None)
-                    
-                    if resistance_zones:
-                        for i, (r_min, r_max) in enumerate(resistance_zones[:3]):
-                            if np.isnan(r_min) or np.isnan(r_max):
-                                continue
-                            mid = (r_min + r_max) / 2
-                            plt.axhline(y=mid, color='red', linestyle='--', alpha=0.5, 
-                                       label=f"Resistance {i+1}" if i==0 else None)
-                    
-                    plt.legend()
-                    plt.savefig(filename, dpi=100)
-                    plt.close()
-                    logger.info(f"Jednoduchý záložní graf uložen: {filename}")
-                    return filename
-                    
-                except Exception as final_error:
-                    logger.error(f"Všechny pokusy o vytvoření grafu selhaly: {str(final_error)}")
-                    return None
+            except Exception as final_error:
+                logger.error(f"Všechny pokusy o vytvoření grafu selhaly: {str(final_error)}")
+                return None
