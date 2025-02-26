@@ -36,9 +36,16 @@ class ChartGenerator:
         Returns:
             str: Cesta k vygenerovanému grafu nebo None při chybě
         """
-        # Debug: Kontrola vstupních zón
-        logger.debug(f"Support zones: {support_zones}")
-        logger.debug(f"Resistance zones: {resistance_zones}")
+        # Podrobné logování vstupních dat
+        logger.info(f"Generating chart for {symbol} ({timeframe})")
+        logger.info(f"Support zones: {support_zones}")
+        logger.info(f"Resistance zones: {resistance_zones}")
+
+        # Ověření dat zón pro lepší diagnostiku
+        if not support_zones:
+            logger.warning("No support zones detected for display")
+        if not resistance_zones:
+            logger.warning("No resistance zones detected for display")
 
         # Nastavení cesty a adresáře
         charts_dir = "charts"
@@ -61,6 +68,11 @@ class ChartGenerator:
         if len(plot_data) < 10:
             logger.warning("Používám všechna dostupná data")
             plot_data = df.copy()
+            
+        # Logování rozsahu cen pro kontrolu viditelnosti zón
+        price_min = plot_data['low'].min()
+        price_max = plot_data['high'].max()
+        logger.info(f"Price range in data: {price_min} - {price_max}")
 
         # Příprava stylu
         plt.style.use('ggplot')
@@ -90,34 +102,58 @@ class ChartGenerator:
 
             ax = axes[0]
             ax2 = axes[2] if len(axes) > 2 else axes[1]
+            
+            # Vylepšené vykreslování supportních zón
+            if support_zones:
+                for i, (s_min, s_max) in enumerate(support_zones[:5]):  # Omezení na 5 zón
+                    try:
+                        # Kontrola zda jsou hodnoty validní
+                        if np.isnan(s_min) or np.isnan(s_max):
+                            logger.warning(f"Ignoring invalid support zone: ({s_min}, {s_max})")
+                            continue
+                            
+                        # Logování jednotlivých vykreslovaných zón
+                        logger.info(f"Drawing support zone {i+1}: {s_min}-{s_max}")
+                        
+                        rect = Rectangle(
+                            (mdates.date2num(plot_data.index[0]), s_min),
+                            mdates.date2num(plot_data.index[-1]) - mdates.date2num(plot_data.index[0]),
+                            s_max - s_min,
+                            facecolor='#90EE90',
+                            alpha=0.6,  # Zvýšeno pro lepší viditelnost
+                            edgecolor='#006400',
+                            linewidth=1.2,  # Zvýšeno pro lepší viditelnost
+                            zorder=0
+                        )
+                        ax.add_patch(rect)
+                    except Exception as ze:
+                        logger.error(f"Error drawing support zone {i+1}: {ze}")
 
-            # Přidání support zón
-            for s_min, s_max in support_zones[:5]:  # Omezení na 5 zón
-                rect = Rectangle(
-                    (mdates.date2num(plot_data.index[0]), s_min),
-                    mdates.date2num(plot_data.index[-1]) - mdates.date2num(plot_data.index[0]),
-                    s_max - s_min,
-                    facecolor='#90EE90',
-                    alpha=0.4,
-                    edgecolor='#006400',
-                    linewidth=0.8,
-                    zorder=0
-                )
-                ax.add_patch(rect)
-
-            # Přidání resistance zón
-            for r_min, r_max in resistance_zones[:5]:  # Omezení na 5 zón
-                rect = Rectangle(
-                    (mdates.date2num(plot_data.index[0]), r_min),
-                    mdates.date2num(plot_data.index[-1]) - mdates.date2num(plot_data.index[0]),
-                    r_max - r_min,
-                    facecolor='#FFB6C1',
-                    alpha=0.4,
-                    edgecolor='#8B0000',
-                    linewidth=0.8,
-                    zorder=0
-                )
-                ax.add_patch(rect)
+            # Vylepšené vykreslování rezistenčních zón
+            if resistance_zones:
+                for i, (r_min, r_max) in enumerate(resistance_zones[:5]):  # Omezení na 5 zón
+                    try:
+                        # Kontrola zda jsou hodnoty validní
+                        if np.isnan(r_min) or np.isnan(r_max):
+                            logger.warning(f"Ignoring invalid resistance zone: ({r_min}, {r_max})")
+                            continue
+                            
+                        # Logování jednotlivých vykreslovaných zón
+                        logger.info(f"Drawing resistance zone {i+1}: {r_min}-{r_max}")
+                        
+                        rect = Rectangle(
+                            (mdates.date2num(plot_data.index[0]), r_min),
+                            mdates.date2num(plot_data.index[-1]) - mdates.date2num(plot_data.index[0]),
+                            r_max - r_min,
+                            facecolor='#FFB6C1',
+                            alpha=0.6,  # Zvýšeno pro lepší viditelnost
+                            edgecolor='#8B0000',
+                            linewidth=1.2,  # Zvýšeno pro lepší viditelnost
+                            zorder=0
+                        )
+                        ax.add_patch(rect)
+                    except Exception as ze:
+                        logger.error(f"Error drawing resistance zone {i+1}: {ze}")
 
             # Dynamické formátování osy X
             if timeframe in ['5m', '15m', '30m']:
@@ -140,22 +176,31 @@ class ChartGenerator:
             price_highs = plot_data['high'].values
             all_prices = np.concatenate([price_lows, price_highs])
 
-            # 2. Bezpečné zpracování zón
+            # 2. Bezpečné zpracování zón s validací
             zone_values = np.array([])
             if support_zones:
-                zone_values = np.append(zone_values, np.array(support_zones).flatten())
+                valid_supports = np.array([z for z in support_zones if not np.isnan(z[0]) and not np.isnan(z[1])])
+                if valid_supports.size > 0:
+                    zone_values = np.append(zone_values, valid_supports.flatten())
+            
             if resistance_zones:
-                zone_values = np.append(zone_values, np.array(resistance_zones).flatten())
+                valid_resistances = np.array([z for z in resistance_zones if not np.isnan(z[0]) and not np.isnan(z[1])])
+                if valid_resistances.size > 0:
+                    zone_values = np.append(zone_values, valid_resistances.flatten())
 
             # 3. Kombinace dat s kontrolou existence
             if zone_values.size > 0:
                 combined_data = np.concatenate([all_prices, zone_values])
+                # Rozšířit rozsah lehce pro zahrnutí všech zón
+                y_min = np.min(combined_data) * 0.998
+                y_max = np.max(combined_data) * 1.002
             else:
-                combined_data = all_prices
-
-            # 4. Výpočet min/max s ochranou proti prázdným datům
-            y_min = np.min(combined_data) * 0.999 if combined_data.size > 0 else np.min(price_lows)
-            y_max = np.max(combined_data) * 1.001 if combined_data.size > 0 else np.max(price_highs)
+                y_min = np.min(price_lows) * 0.998
+                y_max = np.max(price_highs) * 1.002
+            
+            # Explicitně nastavit rozsah osy Y, aby byly vidět všechny zóny
+            logger.info(f"Setting Y-axis range to: {y_min} - {y_max}")
+            ax.set_ylim(y_min, y_max)
 
             # Úprava volumenu
             ax2.set_ylabel('Volume', fontsize=8)
@@ -163,9 +208,30 @@ class ChartGenerator:
             ax2.grid(False)
             ax2.set_facecolor('#f5f5f5')
 
+            # Přidat popisky zón - volitelné pro lepší čitelnost
+            if support_zones:
+                for i, (s_min, s_max) in enumerate(support_zones[:3]):  # Omezení na 3 popisky
+                    if np.isnan(s_min) or np.isnan(s_max):
+                        continue
+                    mid_point = (s_min + s_max) / 2
+                    ax.text(mdates.date2num(plot_data.index[0]), mid_point, 
+                           f"S{i+1}", fontsize=8, color='darkgreen', 
+                           ha='right', va='center', fontweight='bold',
+                           bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0))
+
+            if resistance_zones:
+                for i, (r_min, r_max) in enumerate(resistance_zones[:3]):  # Omezení na 3 popisky
+                    if np.isnan(r_min) or np.isnan(r_max):
+                        continue
+                    mid_point = (r_min + r_max) / 2
+                    ax.text(mdates.date2num(plot_data.index[0]), mid_point, 
+                           f"R{i+1}", fontsize=8, color='darkred', 
+                           ha='right', va='center', fontweight='bold',
+                           bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0))
+
             # Vodoznak a úpravy layoutu
             plt.figtext(0.01, 0.01, 
-                       f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                       f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}, © CCE_Charts",
                        fontsize=7,
                        backgroundcolor='white',
                        bbox=dict(facecolor='white', alpha=0.8, pad=2, edgecolor='lightgray'))
