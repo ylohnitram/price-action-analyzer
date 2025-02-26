@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import mplfinance as mpf
-from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,9 +31,23 @@ class ChartGenerator:
 
         # Ensure the dataframe has the required columns for mplfinance (OHLCV)
         required_columns = {'open', 'high', 'low', 'close', 'volume'}
-        if not required_columns.issubset(df.columns):
+        if not required_columns.issubset(df.columns.str.lower()):
             logger.error("Dataframe does not contain the required OHLCV columns.")
             return None
+
+        # Rename columns to match mplfinance requirements
+        df = df.rename(columns={
+            'open': 'Open',
+            'high': 'High',
+            'low': 'Low',
+            'close': 'Close',
+            'volume': 'Volume'
+        })
+
+        # Ensure the index is in datetime format and sorted
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+        df.sort_index(inplace=True)
 
         # Limit the data range to display
         end_date = df.index.max()
@@ -45,6 +58,7 @@ class ChartGenerator:
         plot_data = df[df.index >= start_date].copy()
         
         if len(plot_data) < 10:
+            logger.warning("Not enough data to generate a meaningful chart. Using all available data.")
             plot_data = df.copy()
 
         # Define candlestick style
@@ -66,65 +80,34 @@ class ChartGenerator:
         )
 
         try:
-            # Create the figure and subplots
-            fig = plt.figure(figsize=(12, 8))
-            gs = fig.add_gridspec(5, 1)
-            ax1 = fig.add_subplot(gs[0:4, 0])  # Main price chart
-            ax2 = fig.add_subplot(gs[4, 0], sharex=ax1)  # Volume chart
-
-            # Plot candlesticks and volume bars
-            mpf.plot(plot_data, ax=ax1, volume=ax2, type='candle', style=style)
-
-            # Move price values back to the right side and keep "Price" label on the left side
-            ax1.yaxis.tick_right()
-            ax1.yaxis.set_label_position("right")
-            ax1.set_ylabel('Price', fontsize=10)
-
-            # Move volume values to the right side and keep "Volume" label on the left side
-            ax2.yaxis.tick_right()
-            ax2.yaxis.set_label_position("right")
-            ax2.set_ylabel('Volume', fontsize=8)
-
-            # Automatic formatting of the time axis
-            locator = AutoDateLocator()
-            ax1.xaxis.set_major_locator(locator)
-            ax1.xaxis.set_major_formatter(ConciseDateFormatter(locator))
-
-            # Rotate X-axis labels for better readability
-            plt.xticks(rotation=45, ha='right', rotation_mode='anchor')
+            # Create additional plots for S/R zones
+            add_plots = []
             
-            # Set X-axis limits based on data range
-            ax1.set_xlim(plot_data.index[0], plot_data.index[-1])
-
-            # Add support and resistance zones without numbers (only "S" or "R")
+            # Add support zones (green rectangles)
             for s_min, s_max in (support_zones or []):
                 if not (np.isnan(s_min) or np.isnan(s_max)):
-                    ax1.axhspan(s_min, s_max, facecolor='#90EE90', edgecolor='#006400', alpha=0.4)
-                    mid_point = (s_min + s_max) / 2
-                    ax1.text(plot_data.index[0], mid_point, "S",
-                             fontsize=8, color='darkgreen', ha='right', va='center',
-                             fontweight='bold', bbox=dict(facecolor='white', alpha=0.7))
+                    add_plots.append(mpf.make_addplot(
+                        [s_min] * len(plot_data), color='green', alpha=0.3))
+                    add_plots.append(mpf.make_addplot(
+                        [s_max] * len(plot_data), color='green', alpha=0.3))
 
+            # Add resistance zones (red rectangles)
             for r_min, r_max in (resistance_zones or []):
                 if not (np.isnan(r_min) or np.isnan(r_max)):
-                    ax1.axhspan(r_min, r_max, facecolor='#FFB6C1', edgecolor='#8B0000', alpha=0.4)
-                    mid_point = (r_min + r_max) / 2
-                    ax1.text(plot_data.index[0], mid_point, "R",
-                             fontsize=8, color='darkred', ha='right', va='center',
-                             fontweight='bold', bbox=dict(facecolor='white', alpha=0.7))
+                    add_plots.append(mpf.make_addplot(
+                        [r_min] * len(plot_data), color='red', alpha=0.3))
+                    add_plots.append(mpf.make_addplot(
+                        [r_max] * len(plot_data), color='red', alpha=0.3))
 
-            # Adjust layout for better readability
-            plt.subplots_adjust(bottom=0.15, hspace=0.05)
-
-            # Add a watermark with generation time
-            plt.figtext(0.01, 0.01,
-                        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-                        fontsize=7, backgroundcolor='white',
-                        bbox=dict(facecolor='white', alpha=0.8))
-
-            # Save the chart to file
-            plt.savefig(filename, dpi=150)
-            plt.close(fig)
+            # Plot candlesticks and volume bars using mplfinance
+            mpf.plot(
+                plot_data,
+                type='candle',
+                volume=True,
+                style=style,
+                addplot=add_plots,
+                savefig=dict(fname=filename, dpi=150, bbox_inches='tight')
+            )
 
             logger.info(f"Chart saved: {filename}")
             return filename
