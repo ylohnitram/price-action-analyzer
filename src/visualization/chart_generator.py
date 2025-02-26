@@ -103,6 +103,17 @@ class ChartGenerator:
             ax = axes[0]
             ax2 = axes[2] if len(axes) > 2 else axes[1]
             
+            # Konvertujeme časové indexy pouze jednou pro všechny obdélníky
+            # Tím zabráníme opakovanému konvertování, které může způsobit problémy s přesností
+            start_x = mdates.date2num(plot_data.index[0])
+            end_x = mdates.date2num(plot_data.index[-1])
+            width_x = end_x - start_x
+            
+            # Explicitně ověříme, zda šířka obdélníku není příliš velká
+            if width_x > 65000:  # Preventivní omezení pro zabránění chyby překročení limitů obrázku
+                logger.warning(f"Date range too large: {width_x}, limiting width")
+                width_x = 65000
+                
             # Vylepšené vykreslování supportních zón
             if support_zones:
                 for i, (s_min, s_max) in enumerate(support_zones[:5]):  # Omezení na 5 zón
@@ -116,8 +127,8 @@ class ChartGenerator:
                         logger.info(f"Drawing support zone {i+1}: {s_min}-{s_max}")
                         
                         rect = Rectangle(
-                            (mdates.date2num(plot_data.index[0]), s_min),
-                            mdates.date2num(plot_data.index[-1]) - mdates.date2num(plot_data.index[0]),
+                            (start_x, s_min),
+                            width_x,
                             s_max - s_min,
                             facecolor='#90EE90',
                             alpha=0.6,  # Zvýšeno pro lepší viditelnost
@@ -142,8 +153,8 @@ class ChartGenerator:
                         logger.info(f"Drawing resistance zone {i+1}: {r_min}-{r_max}")
                         
                         rect = Rectangle(
-                            (mdates.date2num(plot_data.index[0]), r_min),
-                            mdates.date2num(plot_data.index[-1]) - mdates.date2num(plot_data.index[0]),
+                            (start_x, r_min),
+                            width_x,
                             r_max - r_min,
                             facecolor='#FFB6C1',
                             alpha=0.6,  # Zvýšeno pro lepší viditelnost
@@ -202,6 +213,9 @@ class ChartGenerator:
             logger.info(f"Setting Y-axis range to: {y_min} - {y_max}")
             ax.set_ylim(y_min, y_max)
 
+            # Explicitně nastavit rozsah osy X, aby nedocházelo k příliš širokým obrázkům
+            ax.set_xlim(start_x, end_x)
+
             # Úprava volumenu
             ax2.set_ylabel('Volume', fontsize=8)
             ax2.tick_params(axis='y', labelsize=7)
@@ -214,7 +228,7 @@ class ChartGenerator:
                     if np.isnan(s_min) or np.isnan(s_max):
                         continue
                     mid_point = (s_min + s_max) / 2
-                    ax.text(mdates.date2num(plot_data.index[0]), mid_point, 
+                    ax.text(start_x, mid_point, 
                            f"S{i+1}", fontsize=8, color='darkgreen', 
                            ha='right', va='center', fontweight='bold',
                            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0))
@@ -224,22 +238,27 @@ class ChartGenerator:
                     if np.isnan(r_min) or np.isnan(r_max):
                         continue
                     mid_point = (r_min + r_max) / 2
-                    ax.text(mdates.date2num(plot_data.index[0]), mid_point, 
+                    ax.text(start_x, mid_point, 
                            f"R{i+1}", fontsize=8, color='darkred', 
                            ha='right', va='center', fontweight='bold',
                            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=0))
 
             # Vodoznak a úpravy layoutu
             plt.figtext(0.01, 0.01, 
-                       f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}, © CCE_Charts",
+                       f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
                        fontsize=7,
                        backgroundcolor='white',
                        bbox=dict(facecolor='white', alpha=0.8, pad=2, edgecolor='lightgray'))
         
             plt.subplots_adjust(bottom=0.18, hspace=0.15, right=0.95, top=0.92)
 
-            # Uložení
-            plt.savefig(filename, dpi=150, bbox_inches='tight')
+            # Nastavení limitů DPI a velikosti pro plátno
+            # Toto pomáhá předejít chybě s příliš velkým obrázkem
+            fig.set_dpi(150)
+            fig.set_size_inches(12, 8)
+
+            # Uložení s explicitním nastavením DPI a bez bbox_inches='tight', který může způsobit problémy
+            plt.savefig(filename, dpi=150)
             plt.close(fig)
             logger.info(f"Graf uložen: {filename}")
             return filename
@@ -247,13 +266,32 @@ class ChartGenerator:
         except Exception as e:
             logger.error(f"Chyba generování grafu: {str(e)}")
             try:
-                # Fallback: Základní čárový graf
-                plt.figure(figsize=(12, 6))
+                # Fallback: Jednoduchý čárový graf s menšími požadavky na paměť
+                plt.figure(figsize=(10, 6), dpi=100)
                 plt.plot(plot_data.index, plot_data['close'], linewidth=1, color='navy')
                 plt.title(f"{symbol} - Line Chart")
                 plt.grid(True, alpha=0.3)
-                plt.savefig(filename, dpi=150)
+                
+                # Vykreslení podpor a rezistencí jako horizontální čáry
+                if support_zones:
+                    for i, (s_min, s_max) in enumerate(support_zones[:3]):
+                        if np.isnan(s_min) or np.isnan(s_max):
+                            continue
+                        mid_point = (s_min + s_max) / 2
+                        plt.axhline(y=mid_point, color='green', linestyle='--', alpha=0.5, 
+                                   label=f"Support {i+1}" if i == 0 else None)
+                        
+                if resistance_zones:
+                    for i, (r_min, r_max) in enumerate(resistance_zones[:3]):
+                        if np.isnan(r_min) or np.isnan(r_max):
+                            continue
+                        mid_point = (r_min + r_max) / 2
+                        plt.axhline(y=mid_point, color='red', linestyle='--', alpha=0.5, 
+                                   label=f"Resistance {i+1}" if i == 0 else None)
+                
+                plt.savefig(filename, dpi=100)
                 plt.close()
+                logger.info(f"Záložní graf uložen: {filename}")
                 return filename
             except Exception as fallback_error:
                 logger.error(f"Záložní graf selhal: {str(fallback_error)}")
