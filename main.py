@@ -88,9 +88,9 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=2):
         logger.info("Zpracovávám data")
         dataframes = analyzer.process_multi_timeframe_data(multi_tf_data)
         
-        # Generování analýzy
+        # Generování analýzy - upravená verze která vrací i scénáře pro vizualizaci
         logger.info("Generuji kompletní AI analýzu")
-        analysis, support_zones, resistance_zones = analyzer.generate_multi_timeframe_analysis(symbol, dataframes)
+        analysis, support_zones, resistance_zones, scenarios = analyzer.generate_multi_timeframe_analysis(symbol, dataframes)
         
         # Přidáme nadpis k analýze
         analysis = f"# Kompletní Price Action Analýza {symbol}\n\n{analysis}"
@@ -98,14 +98,15 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=2):
         # Generování grafu
         chart_path = None
         if not no_chart and '1d' in dataframes:
-            logger.info(f"Generuji graf s cenovými zónami za posledních {chart_days} dní")
+            logger.info(f"Generuji graf s cenovými zónami a scénáři za posledních {chart_days} dní")
             chart_path = chart_generator.generate_chart(
                 dataframes['1d'], 
                 support_zones, 
                 resistance_zones, 
                 symbol,
                 days_to_show=chart_days,
-                timeframe='1d'  # Předáváme informaci o timeframe
+                timeframe='1d',  # Předáváme informaci o timeframe
+                scenarios=scenarios  # Předáváme scénáře pro vizualizaci
             )
             logger.info(f"Graf vygenerován: {chart_path}")
         
