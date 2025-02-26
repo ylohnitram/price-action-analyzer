@@ -68,13 +68,11 @@ class ChartGenerator:
             # Plot candlesticks and volume bars
             mpf.plot(plot_data, ax=ax1, volume=ax2, type='candle', style=style)
 
-            # Move price values back to the right side
+            # Move price values back to the right side and keep "Price" label on the left side
             ax1.yaxis.tick_right()
             ax1.yaxis.set_label_position("right")
-            
-            # Keep "Price" label on the left side
             ax1.set_ylabel('Price', fontsize=10)
-            
+
             # Move volume values to the right side and keep "Volume" label on the left side
             ax2.yaxis.tick_right()
             ax2.yaxis.set_label_position("right")
@@ -91,28 +89,20 @@ class ChartGenerator:
             # Set X-axis limits based on data range
             ax1.set_xlim(plot_data.index[0], plot_data.index[-1])
 
-            # Add support and resistance zones with proper numbering
-            for i, (s_min, s_max) in enumerate(support_zones[:5] if support_zones else [], start=1):
+            # Add support and resistance zones without numbers (only "S" or "R")
+            for s_min, s_max in (support_zones or []):
                 if not (np.isnan(s_min) or np.isnan(s_max)):
-                    if s_max < plot_data['low'].min() or s_min > plot_data['high'].max():
-                        label = f"S{i} (out of range)"
-                    else:
-                        label = f"S{i}"
                     ax1.axhspan(s_min, s_max, facecolor='#90EE90', edgecolor='#006400', alpha=0.4)
                     mid_point = (s_min + s_max) / 2
-                    ax1.text(plot_data.index[0], mid_point, label,
+                    ax1.text(plot_data.index[0], mid_point, "S",
                              fontsize=8, color='darkgreen', ha='right', va='center',
                              fontweight='bold', bbox=dict(facecolor='white', alpha=0.7))
 
-            for i, (r_min, r_max) in enumerate(resistance_zones[:5] if resistance_zones else [], start=1):
+            for r_min, r_max in (resistance_zones or []):
                 if not (np.isnan(r_min) or np.isnan(r_max)):
-                    if r_max < plot_data['low'].min() or r_min > plot_data['high'].max():
-                        label = f"R{i} (out of range)"
-                    else:
-                        label = f"R{i}"
                     ax1.axhspan(r_min, r_max, facecolor='#FFB6C1', edgecolor='#8B0000', alpha=0.4)
                     mid_point = (r_min + r_max) / 2
-                    ax1.text(plot_data.index[0], mid_point, label,
+                    ax1.text(plot_data.index[0], mid_point, "R",
                              fontsize=8, color='darkred', ha='right', va='center',
                              fontweight='bold', bbox=dict(facecolor='white', alpha=0.7))
 
