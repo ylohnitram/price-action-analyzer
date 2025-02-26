@@ -11,6 +11,7 @@ from openai import OpenAI
 import pandas as pd
 import mplfinance as mpf
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from matplotlib.patches import Rectangle
 import re
 import logging
@@ -453,14 +454,34 @@ Formát:
         
         try:
             # Příprava grafu - optimalizované nastavení pro lepší výkon
+            date_str = plot_data.index[0].strftime('%Y-%m-%d')
+            
+            # Vytvoření vlastních stylů pro svíčkový graf
+            mc = mpf.make_marketcolors(
+                up='#26a69a', down='#ef5350',
+                edge='inherit',
+                wick={'up':'#26a69a', 'down':'#ef5350'},
+                volume='inherit',
+            )
+            
+            s = mpf.make_mpf_style(
+                marketcolors=mc,
+                gridstyle='-',
+                gridcolor='#e6e6e6',
+                gridaxis='both',
+                facecolor='white',
+                figcolor='white',
+                y_on_right=True
+            )
+            
             fig, axes = mpf.plot(
                 plot_data, 
                 type='candle', 
-                style='yahoo', 
-                title=f"{symbol} - Price Action Analysis",
+                style=s, 
+                title=f"{symbol} - {date_str} - Price Action Analysis",
                 ylabel='Price',
-                volume=False,  # Vypnutí objemu pro lepší výkon
-                figsize=(8, 4),  # Menší velikost pro rychlejší renderování
+                volume=True,
+                figsize=(10, 6),
                 returnfig=True,
                 warn_too_much_data=10000,
                 tight_layout=True
@@ -468,6 +489,18 @@ Formát:
             
             # Přidání supportních zón
             ax = axes[0]
+            
+            # Formátování osy X pro lepší čitelnost
+            time_interval = hours_to_show if hours_to_show else days_to_show * 24
+            if time_interval <= 24:  # Pro méně než den zobrazíme hodinové značky
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+            elif time_interval <= 72:  # Pro méně než 3 dny zobrazíme 4-hodinové značky
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m %H:%M'))
+                ax.xaxis.set_major_locator(mdates.HourLocator(interval=4))
+            else:  # Pro více dní zobrazíme denní značky
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m'))
+                ax.xaxis.set_major_locator(mdates.DayLocator())
             
             # Přidání support zón (maximálně 5)
             for s_min, s_max in support_zones:
@@ -512,8 +545,8 @@ Formát:
             time_now = datetime.now().strftime("%Y-%m-%d %H:%M")
             plt.figtext(0.02, 0.02, f"Generated: {time_now}", fontsize=6)
             
-            # Uložení grafu s nižší kvalitou ale vyšší rychlostí
-            plt.savefig(filename, dpi=100, bbox_inches='tight', optimize=True, transparent=False)
+            # Uložení grafu s vyšší kvalitou (150 DPI)
+            plt.savefig(filename, dpi=150, bbox_inches='tight', transparent=False)
             plt.close(fig)
             
             logger.info(f"Graf úspěšně vygenerován: {filename}")
@@ -521,18 +554,28 @@ Formát:
             
         except Exception as e:
             logger.error(f"Chyba při generování grafu: {str(e)}")
-            # Pokud selže, zkusíme vygenerovat extrémně jednoduchý graf
+            # Pokud selže, zkusíme vygenerovat jednodušší svíčkový graf
             try:
-                plt.figure(figsize=(8, 4))
-                plt.plot(plot_data.index, plot_data['close'])
-                plt.title(f"{symbol} - Simple Price Chart")
-                plt.savefig(filename, dpi=80)
-                plt.close()
-                logger.info(f"Záložní jednoduchý graf vygenerován: {filename}")
+                # Základní svíčkový graf s minimálním nastavením
+                mpf.plot(plot_data, type='candle', style='yahoo', savefig=filename, figsize=(10, 6), dpi=150)
+                logger.info(f"Záložní svíčkový graf vygenerován: {filename}")
                 return filename
-            except:
-                logger.error("Nepodařilo se vygenerovat ani záložní jednoduchý graf")
-                return None
+            except Exception as backup_error:
+                logger.error(f"Chyba při generování záložního svíčkového grafu: {str(backup_error)}")
+                # Pokud selže i to, použijeme opravdu základní čárový graf
+                try:
+                    plt.figure(figsize=(10, 6))
+                    plt.plot(plot_data.index, plot_data['close'])
+                    plt.title(f"{symbol} - Simple Price Chart")
+                    plt.xticks(rotation=45)
+                    plt.tight_layout()
+                    plt.savefig(filename, dpi=150)
+                    plt.close()
+                    logger.info(f"Jednoduchý čárový graf vygenerován: {filename}")
+                    return filename
+                except Exception as final_error:
+                    logger.error(f"Chyba při generování jednoduchého čárového grafu: {str(final_error)}")
+                    return None
 
     def process_data(self, klines_data):
         """
