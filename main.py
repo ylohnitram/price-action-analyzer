@@ -90,6 +90,9 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=2):
         logger.info("Generuji kompletní AI analýzu")
         analysis, support_zones, resistance_zones = analyzer.generate_multi_timeframe_analysis(symbol, dataframes)
         
+        # Přidáme nadpis k analýze
+        analysis = f"# Kompletní Price Action Analýza {symbol}\n\n{analysis}"
+        
         # Generování grafu
         chart_path = None
         if not no_chart and '1d' in dataframes:
@@ -99,7 +102,8 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=2):
                 support_zones, 
                 resistance_zones, 
                 symbol,
-                days_to_show=chart_days
+                days_to_show=chart_days,
+                timeframe='1d'  # Předáváme informaci o timeframe
             )
             logger.info(f"Graf vygenerován: {chart_path}")
         
@@ -120,6 +124,90 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=2):
         
     except Exception as e:
         logger.error(f"Chyba během kompletní analýzy: {str(e)}")
+        return False
+
+def run_analysis(symbol, interval, days, no_chart=False, chart_days=2):
+    """
+    Spustí analýzu pro jeden časový rámec.
+    
+    Args:
+        symbol (str): Obchodní symbol
+        interval (str): Časový interval
+        days (int): Počet dní historie
+        no_chart (bool): Nevytvářet grafy
+        chart_days (int): Počet dní v grafu
+        
+    Returns:
+        bool: True pokud byla analýza úspěšně dokončena
+    """
+    # Ověření vstupních parametrů
+    validate_interval(interval)
+    validate_days(days)
+    
+    # Kontrola proměnných prostředí
+    env_vars = get_required_env_vars()
+    
+    logger.info(f"Spouštím analýzu pro {symbol} ({interval}), historie: {days} dní")
+    
+    # Inicializace klientů
+    binance_client = BinanceClient()
+    analyzer = PriceActionAnalyzer(api_key=env_vars['OPENAI_API_KEY'])
+    telegram_bot = TelegramBot(
+        token=env_vars['TELEGRAM_TOKEN'],
+        chat_id=env_vars['TELEGRAM_CHAT_ID']
+    )
+    
+    try:
+        # Stažení dat
+        logger.info(f"Stahuji data z Binance")
+        klines_data = binance_client.fetch_historical_data(symbol, interval, days)
+        logger.info(f"Staženo {len(klines_data)} svíček")
+        
+        # Zpracování dat
+        df = analyzer.process_data(klines_data)
+        
+        # Detekce patternů
+        logger.info("Detekuji price action patterny")
+        patterns = analyzer.detect_patterns(df)
+        logger.info(f"Detekováno {len(patterns)} patternů")
+        
+        # Generování analýzy
+        logger.info("Generuji AI analýzu")
+        analysis, support_zones, resistance_zones = analyzer.generate_analysis(symbol, df, patterns)
+        
+        # Přidáme nadpis k analýze
+        analysis = f"# Price Action Analýza {symbol} ({interval})\n\n{analysis}"
+        
+        # Generování grafu
+        chart_path = None
+        if not no_chart:
+            logger.info(f"Generuji graf s cenovými zónami za posledních {chart_days} dní")
+            chart_path = analyzer.generate_chart(
+                df, 
+                support_zones, 
+                resistance_zones, 
+                symbol,
+                days_to_show=chart_days,
+                timeframe=interval  # Předáváme informaci o timeframe
+            )
+            logger.info(f"Graf vygenerován: {chart_path}")
+        
+        # Odeslání výsledků
+        logger.info("Odesílám analýzu na Telegram")
+        if chart_path:
+            telegram_bot.send_analysis_with_chart(analysis, chart_path)
+        else:
+            telegram_bot.send_message(analysis)
+        
+        # Uložení dat
+        filename = save_data_to_csv(df, symbol, interval)
+        logger.info(f"Data uložena do: {filename}")
+        
+        logger.info("Analýza úspěšně dokončena")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Chyba během analýzy: {str(e)}")
         return False
 
 def run_intraday_analysis(symbol, no_chart=False, chart_days=1):
@@ -167,6 +255,9 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=1):
         logger.info("Generuji intraday AI analýzu")
         analysis, support_zones, resistance_zones = analyzer.generate_intraday_analysis(symbol, dataframes)
         
+        # Přidáme nadpis k analýze
+        analysis = f"# Intraday Price Action Analýza {symbol}\n\n{analysis}"
+        
         # Generování grafu - nikdy nepoužívat 4h timeframe pro intraday
         chart_path = None
         if not no_chart:
@@ -191,7 +282,8 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=1):
                     support_zones, 
                     resistance_zones, 
                     symbol,
-                    days_to_show=days_to_show
+                    days_to_show=days_to_show,
+                    timeframe=chart_tf  # Předáváme informaci o timeframe
                 )
                 logger.info(f"Graf vygenerován: {chart_path}")
         

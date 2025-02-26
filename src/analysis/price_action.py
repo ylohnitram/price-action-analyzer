@@ -400,182 +400,199 @@ Formát:
             
         return zones
 
-    def generate_chart(self, df, support_zones, resistance_zones, symbol, filename=None, days_to_show=2, hours_to_show=None):
-        """
-        Generuje svíčkový graf s naznačenými zónami a scénáři, optimalizováno pro výkon.
+    def generate_chart(self, df, support_zones, resistance_zones, symbol, filename=None, days_to_show=2, hours_to_show=None, timeframe=None):
+    """
+    Generuje svíčkový graf s naznačenými zónami a scénáři, optimalizováno pro výkon.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame s OHLCV daty
+        support_zones (list): Seznam supportních zón [(min1, max1), (min2, max2), ...]
+        resistance_zones (list): Seznam resistenčních zón [(min1, max1), (min2, max2), ...]
+        symbol (str): Symbol obchodního páru
+        filename (str, optional): Název výstupního souboru. Pokud None, vygeneruje automaticky.
+        days_to_show (int): Počet posledních dnů k zobrazení (výchozí 2)
+        hours_to_show (int, optional): Počet posledních hodin k zobrazení (má přednost před days_to_show)
+        timeframe (str, optional): Časový rámec dat (např. "30m", "4h")
         
-        Args:
-            df (pandas.DataFrame): DataFrame s OHLCV daty
-            support_zones (list): Seznam supportních zón [(min1, max1), (min2, max2), ...]
-            resistance_zones (list): Seznam resistenčních zón [(min1, max1), (min2, max2), ...]
-            symbol (str): Symbol obchodního páru
-            filename (str, optional): Název výstupního souboru. Pokud None, vygeneruje automaticky.
-            days_to_show (int): Počet posledních dnů k zobrazení (výchozí 2)
-            hours_to_show (int, optional): Počet posledních hodin k zobrazení (má přednost před days_to_show)
-            
-        Returns:
-            str: Cesta k vygenerovanému souboru
-        """
-        # Vytvoření adresáře pro grafy, pokud neexistuje
-        charts_dir = "charts"
-        if not os.path.exists(charts_dir):
-            os.makedirs(charts_dir)
-            
-        # Název souboru s časovou značkou
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = os.path.join(charts_dir, f"{symbol}_{timestamp}.png")
+    Returns:
+        str: Cesta k vygenerovanému souboru
+    """
+    # Vytvoření adresáře pro grafy, pokud neexistuje
+    charts_dir = "charts"
+    if not os.path.exists(charts_dir):
+        os.makedirs(charts_dir)
         
-        # Omezení dat pouze na posledních N hodin/dní
-        end_date = df.index.max()
+    # Název souboru s časovou značkou
+    if not filename:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.join(charts_dir, f"{symbol}_{timestamp}.png")
+    
+    # Omezení dat pouze na posledních N hodin/dní
+    end_date = df.index.max()
+    
+    if hours_to_show:
+        start_date = end_date - timedelta(hours=hours_to_show)
+        logger.info(f"Omezuji data na posledních {hours_to_show} hodin")
+    else:
+        start_date = end_date - timedelta(days=days_to_show)
+        logger.info(f"Omezuji data na posledních {days_to_show} dní")
+    
+    # Filtruje DataFrame na požadované časové období
+    plot_data = df[df.index >= start_date].copy()
+    
+    # Pokud jsou data prázdná, použijte všechna dostupná data
+    if len(plot_data) < 10:
+        logger.warning(f"Nedostatek dat pro požadované časové období, používám všechna dostupná data.")
+        plot_data = df.copy()
         
-        if hours_to_show:
-            start_date = end_date - timedelta(hours=hours_to_show)
-            logger.info(f"Omezuji data na posledních {hours_to_show} hodin")
-        else:
-            start_date = end_date - timedelta(days=days_to_show)
-            logger.info(f"Omezuji data na posledních {days_to_show} dní")
+    logger.info(f"Generuji graf s {len(plot_data)} svíčkami od {plot_data.index.min()} do {plot_data.index.max()}")
+    
+    # Omezení počtu zón pro lepší výkon
+    if len(support_zones) > 5:
+        support_zones = support_zones[:5]
+    if len(resistance_zones) > 5:
+        resistance_zones = resistance_zones[:5]
+    
+    try:
+        # Příprava grafu - optimalizované nastavení pro lepší výkon
+        date_str = plot_data.index[0].strftime('%Y-%m-%d')
+        tf_str = f"({timeframe})" if timeframe else ""
         
-        # Filtruje DataFrame na požadované časové období
-        plot_data = df[df.index >= start_date].copy()
+        # Vytvoření vlastních stylů pro svíčkový graf
+        mc = mpf.make_marketcolors(
+            up='#26a69a', down='#ef5350',
+            edge='inherit',
+            wick={'up':'#26a69a', 'down':'#ef5350'},
+            volume='inherit',
+        )
         
-        # Pokud jsou data prázdná, použijte všechna dostupná data
-        if len(plot_data) < 10:
-            logger.warning(f"Nedostatek dat pro požadované časové období, používám všechna dostupná data.")
-            plot_data = df.copy()
-            
-        logger.info(f"Generuji graf s {len(plot_data)} svíčkami od {plot_data.index.min()} do {plot_data.index.max()}")
+        s = mpf.make_mpf_style(
+            marketcolors=mc,
+            gridstyle='-',
+            gridcolor='#e6e6e6',
+            gridaxis='both',
+            facecolor='white',
+            figcolor='white',
+            y_on_right=True
+        )
         
-        # Omezení počtu zón pro lepší výkon
-        if len(support_zones) > 5:
-            support_zones = support_zones[:5]
-        if len(resistance_zones) > 5:
-            resistance_zones = resistance_zones[:5]
+        # Nastavení velikosti a mezí grafu
+        fig, axes = mpf.plot(
+            plot_data, 
+            type='candle', 
+            style=s, 
+            title=f"{symbol} {tf_str} - {date_str} - Price Action Analysis",
+            ylabel='Price',
+            volume=True,
+            figsize=(10, 6),
+            returnfig=True,
+            warn_too_much_data=10000,
+            tight_layout=False  # Důležité: nechat volné místo pro popisky os
+        )
         
+        # Přidání supportních zón
+        ax = axes[0]
+        
+        # Formátování osy X pro lepší čitelnost
+        time_interval = hours_to_show if hours_to_show else days_to_show * 24
+        if time_interval <= 24:  # Pro méně než den zobrazíme hodinové značky
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+        elif time_interval <= 72:  # Pro méně než 3 dny zobrazíme 4-hodinové značky
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m %H:%M'))
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=4))
+        else:  # Pro více dní zobrazíme denní značky
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m'))
+            ax.xaxis.set_major_locator(mdates.DayLocator())
+        
+        # Rotace popisků X osy pro lepší čitelnost a zabránění překrývání
+        plt.xticks(rotation=30, ha='right')
+        
+        # Přidání support zón (maximálně 5) - zvýšená neprůhlednost (0.5 místo 0.3)
+        for s_min, s_max in support_zones:
+            rect = plt.Rectangle(
+                (plot_data.index[0], s_min), 
+                plot_data.index[-1] - plot_data.index[0], 
+                s_max - s_min,
+                facecolor='green', 
+                alpha=0.5,  # Zvýšená neprůhlednost
+                zorder=0
+            )
+            ax.add_patch(rect)
+        
+        # Přidání resistance zón (maximálně 5) - zvýšená neprůhlednost (0.5 místo 0.3)
+        for r_min, r_max in resistance_zones:
+            rect = plt.Rectangle(
+                (plot_data.index[0], r_min), 
+                plot_data.index[-1] - plot_data.index[0], 
+                r_max - r_min,
+                facecolor='red', 
+                alpha=0.5,  # Zvýšená neprůhlednost
+                zorder=0
+            )
+            ax.add_patch(rect)
+        
+        # Automaticky nastavit y-limity grafu tak, aby zahrnuly všechny zóny
+        all_price_points = []
+        for zone in support_zones + resistance_zones:
+            all_price_points.extend(zone)
+        
+        # Přidej také min/max ceny z grafu
+        all_price_points.extend([plot_data['low'].min(), plot_data['high'].max()])
+        
+        if all_price_points:
+            min_value = min(all_price_points)
+            max_value = max(all_price_points)
+            # Přidáme menší margin pro lepší výkon
+            margin = (max_value - min_value) * 0.03
+            ax.set_ylim(min_value - margin, max_value + margin)
+        
+        # Přidáme vodoznak s časem generování, ale s bílým pozadím, aby nebyl černý chumel
+        time_now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        # Přidáme pozadí k textu, aby nebyl nečitelný
+        plt.figtext(0.01, 0.01, f"Generated: {time_now}", 
+                  fontsize=8, 
+                  bbox=dict(facecolor='white', alpha=0.8, pad=3, edgecolor='lightgray'))
+        
+        # Přidáme více prostoru v dolní části pro popisky osy X
+        plt.subplots_adjust(bottom=0.15)
+        
+        # Uložení grafu s vyšší kvalitou (150 DPI)
+        plt.savefig(filename, dpi=150, bbox_inches='tight', transparent=False)
+        plt.close(fig)
+        
+        logger.info(f"Graf úspěšně vygenerován: {filename}")
+        return filename
+        
+    except Exception as e:
+        logger.error(f"Chyba při generování grafu: {str(e)}")
+        # Pokud selže, zkusíme vygenerovat jednodušší svíčkový graf
         try:
-            # Příprava grafu - optimalizované nastavení pro lepší výkon
-            date_str = plot_data.index[0].strftime('%Y-%m-%d')
-            
-            # Vytvoření vlastních stylů pro svíčkový graf
-            mc = mpf.make_marketcolors(
-                up='#26a69a', down='#ef5350',
-                edge='inherit',
-                wick={'up':'#26a69a', 'down':'#ef5350'},
-                volume='inherit',
-            )
-            
-            s = mpf.make_mpf_style(
-                marketcolors=mc,
-                gridstyle='-',
-                gridcolor='#e6e6e6',
-                gridaxis='both',
-                facecolor='white',
-                figcolor='white',
-                y_on_right=True
-            )
-            
-            fig, axes = mpf.plot(
-                plot_data, 
-                type='candle', 
-                style=s, 
-                title=f"{symbol} - {date_str} - Price Action Analysis",
-                ylabel='Price',
-                volume=True,
-                figsize=(10, 6),
-                returnfig=True,
-                warn_too_much_data=10000,
-                tight_layout=True
-            )
-            
-            # Přidání supportních zón
-            ax = axes[0]
-            
-            # Formátování osy X pro lepší čitelnost
-            time_interval = hours_to_show if hours_to_show else days_to_show * 24
-            if time_interval <= 24:  # Pro méně než den zobrazíme hodinové značky
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-                ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
-            elif time_interval <= 72:  # Pro méně než 3 dny zobrazíme 4-hodinové značky
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m %H:%M'))
-                ax.xaxis.set_major_locator(mdates.HourLocator(interval=4))
-            else:  # Pro více dní zobrazíme denní značky
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m'))
-                ax.xaxis.set_major_locator(mdates.DayLocator())
-            
-            # Přidání support zón (maximálně 5)
-            for s_min, s_max in support_zones:
-                rect = plt.Rectangle(
-                    (plot_data.index[0], s_min), 
-                    plot_data.index[-1] - plot_data.index[0], 
-                    s_max - s_min,
-                    facecolor='green', 
-                    alpha=0.3,
-                    zorder=0
-                )
-                ax.add_patch(rect)
-            
-            # Přidání resistance zón (maximálně 5)
-            for r_min, r_max in resistance_zones:
-                rect = plt.Rectangle(
-                    (plot_data.index[0], r_min), 
-                    plot_data.index[-1] - plot_data.index[0], 
-                    r_max - r_min,
-                    facecolor='red', 
-                    alpha=0.3,
-                    zorder=0
-                )
-                ax.add_patch(rect)
-            
-            # Automaticky nastavit y-limity grafu tak, aby zahrnuly všechny zóny
-            all_price_points = []
-            for zone in support_zones + resistance_zones:
-                all_price_points.extend(zone)
-            
-            # Přidej také min/max ceny z grafu
-            all_price_points.extend([plot_data['low'].min(), plot_data['high'].max()])
-            
-            if all_price_points:
-                min_value = min(all_price_points)
-                max_value = max(all_price_points)
-                # Přidáme menší margin pro lepší výkon
-                margin = (max_value - min_value) * 0.03
-                ax.set_ylim(min_value - margin, max_value + margin)
-            
-            # Přidáme jednoduchý vodoznak
-            time_now = datetime.now().strftime("%Y-%m-%d %H:%M")
-            plt.figtext(0.02, 0.02, f"Generated: {time_now}", fontsize=6)
-            
-            # Uložení grafu s vyšší kvalitou (150 DPI)
-            plt.savefig(filename, dpi=150, bbox_inches='tight', transparent=False)
-            plt.close(fig)
-            
-            logger.info(f"Graf úspěšně vygenerován: {filename}")
+            # Základní svíčkový graf s minimálním nastavením
+            tf_str = f"({timeframe})" if timeframe else ""
+            title = f"{symbol} {tf_str} - {date_str} - Simple Candlestick Chart"
+            mpf.plot(plot_data, type='candle', style='yahoo', 
+                   title=title,
+                   savefig=filename, figsize=(10, 6), dpi=150)
+            logger.info(f"Záložní svíčkový graf vygenerován: {filename}")
             return filename
-            
-        except Exception as e:
-            logger.error(f"Chyba při generování grafu: {str(e)}")
-            # Pokud selže, zkusíme vygenerovat jednodušší svíčkový graf
+        except Exception as backup_error:
+            logger.error(f"Chyba při generování záložního svíčkového grafu: {str(backup_error)}")
+            # Pokud selže i to, použijeme opravdu základní čárový graf
             try:
-                # Základní svíčkový graf s minimálním nastavením
-                mpf.plot(plot_data, type='candle', style='yahoo', savefig=filename, figsize=(10, 6), dpi=150)
-                logger.info(f"Záložní svíčkový graf vygenerován: {filename}")
+                plt.figure(figsize=(10, 6))
+                plt.plot(plot_data.index, plot_data['close'])
+                tf_str = f"({timeframe})" if timeframe else ""
+                plt.title(f"{symbol} {tf_str} - Simple Price Chart")
+                plt.xticks(rotation=30)
+                plt.tight_layout()
+                plt.savefig(filename, dpi=150)
+                plt.close()
+                logger.info(f"Jednoduchý čárový graf vygenerován: {filename}")
                 return filename
-            except Exception as backup_error:
-                logger.error(f"Chyba při generování záložního svíčkového grafu: {str(backup_error)}")
-                # Pokud selže i to, použijeme opravdu základní čárový graf
-                try:
-                    plt.figure(figsize=(10, 6))
-                    plt.plot(plot_data.index, plot_data['close'])
-                    plt.title(f"{symbol} - Simple Price Chart")
-                    plt.xticks(rotation=45)
-                    plt.tight_layout()
-                    plt.savefig(filename, dpi=150)
-                    plt.close()
-                    logger.info(f"Jednoduchý čárový graf vygenerován: {filename}")
-                    return filename
-                except Exception as final_error:
-                    logger.error(f"Chyba při generování jednoduchého čárového grafu: {str(final_error)}")
-                    return None
+            except Exception as final_error:
+                logger.error(f"Chyba při generování jednoduchého čárového grafu: {str(final_error)}")
+                return None
 
     def process_data(self, klines_data):
         """
