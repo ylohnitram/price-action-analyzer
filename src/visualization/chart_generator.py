@@ -5,6 +5,7 @@ matplotlib.use('Agg')  # Non-interactive backend for rendering charts
 from datetime import datetime, timedelta
 import os
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import mplfinance as mpf
 from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
