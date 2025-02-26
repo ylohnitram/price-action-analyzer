@@ -111,6 +111,8 @@ price-action-analyzer/
 │   │   └── binance_client.py   # Klient pro Binance API
 │   ├── analysis/
 │   │   └── price_action.py     # Price action analýza
+│   ├── visualization/
+│   │   └── chart_generator.py  # Generování grafů
 │   ├── notification/
 │   │   └── telegram_bot.py     # Telegram notifikace
 │   └── utils/
@@ -119,6 +121,17 @@ price-action-analyzer/
 ├── requirements.txt       # Závislosti
 └── README.md              # Dokumentace
 ```
+
+## Architektura
+
+Aplikace je rozdělena do několika modulů s jasně definovanou zodpovědností:
+
+- **BinanceClient**: Stahování dat z Binance API
+- **PriceActionAnalyzer**: Analytická část - zpracování dat, detekce patternů, generování textové analýzy
+- **ChartGenerator**: Vizualizační část - generování grafů s cenovými zónami
+- **TelegramBot**: Odesílání notifikací a reportů
+
+Toto rozdělení zajišťuje lepší testovatelnost a udržovatelnost kódu.
 
 ## Příklad výstupu
 
@@ -223,40 +236,6 @@ price-action-analyzer/
    - Platnost: 8 hodin
 
 Čas analýzy: 2024-03-16 14:30 UTC
-```
-
-### Single-Timeframe Analýza
-
-```
-**Price Action Analýza BTCUSDT (30m)**
-
-1. **Významná cenová struktura**
-   - Vytvoření vyšších low (15:30, 16:15, 17:00 UTC)
-   - Konsolidace pod resistancí $66,800
-   - Klíčová supportní zóna: $66,400-$66,500
-
-2. **Detekované patterny**
-   - Bullish Order Block na $66,450 (15:45 UTC)
-   - False Low Breakout na $66,350 (16:30 UTC)
-   - Inside Bar formace (17:15-17:45 UTC)
-
-3. **Objemová analýza**
-   - Klesající objem během konsolidace (typicky předchází pohybu)
-   - Volume spike na $66,350 (akumulace na supportu)
-   - Nízký volume na resistance = slabý prodejní tlak
-
-4. **Supporty a resistance**
-   - S1: $66,450 (Order Block)
-   - S2: $66,350 (False Breakout Low)
-   - R1: $66,800 (Intraday High)
-   - R2: $67,000 (Psychologická úroveň)
-
-5. **Obchodní příležitosti**
-   - Long nad $66,550 (průraz Inside Bar formace)
-   - Stop Loss pod $66,450 (pod Order Block)
-   - Cíle: $66,800 a $67,000
-
-Čas analýzy: 2024-03-16 18:00 UTC
 ```
 
 ## Licence
