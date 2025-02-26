@@ -86,51 +86,51 @@ class PriceActionAnalyzer:
         return patterns
 
     def generate_multi_timeframe_analysis(self, symbol, dataframes):
-        """
-        Generuje multi-timeframe analýzu na základě dat z různých časových rámců.
-        Tato verze je upravena pro nezahrnování konkrétních vstupů a zaměření na zóny.
+    """
+    Generuje multi-timeframe analýzu na základě dat z různých časových rámců.
+    Tato verze je upravena pro nezahrnování konkrétních vstupů a zaměření na zóny.
+    
+    Args:
+        symbol (str): Obchodní symbol
+        dataframes (dict): Slovník s DataFrame pro různé časové rámce
         
-        Args:
-            symbol (str): Obchodní symbol
-            dataframes (dict): Slovník s DataFrame pro různé časové rámce
+    Returns:
+        tuple: (analýza, support_zóny, resistance_zóny, scenáře)
+    """
+    patterns_by_tf = {}
+    for tf, df in dataframes.items():
+        patterns_by_tf[tf] = self.detect_patterns(df)
+
+    timeframe_data = []
+    all_timeframes = ["1w", "1d", "4h", "30m", "5m"]
+    
+    for tf in all_timeframes:
+        if tf in dataframes:
+            df = dataframes[tf]
+            num_candles = 5 if tf in ['1w', '1d'] else (7 if tf == '4h' else 10)
             
-        Returns:
-            tuple: (analýza, support_zóny, resistance_zóny, scenáře)
-        """
-        patterns_by_tf = {}
-        for tf, df in dataframes.items():
-            patterns_by_tf[tf] = self.detect_patterns(df)
+            tf_data = f"## Časový rámec: {tf}\n"
+            tf_data += f"Rozsah dat: {df.index[0]} až {df.index[-1]}\n"
+            tf_data += f"Počet svíček: {len(df)}\n"
+            tf_data += f"Posledních {num_candles} svíček:\n"
+            tf_data += f"{df[['open','high','low','close','volume']].tail(num_candles).to_markdown()}\n\n"
+            
+            patterns = patterns_by_tf[tf]
+            if patterns:
+                tf_data += f"Poslední patterny:\n"
+                for pattern in patterns[-8:]:  # Zobrazíme více patternů pro lepší analýzu
+                    tf_data += f"- {pattern[0]} na úrovni {pattern[2]:.2f}-{pattern[3]:.2f} ({pattern[1]})\n"
+            
+            timeframe_data.append(tf_data)
 
-        timeframe_data = []
-        all_timeframes = ["1w", "1d", "4h", "30m", "5m"]
-        
-        for tf in all_timeframes:
-            if tf in dataframes:
-                df = dataframes[tf]
-                num_candles = 5 if tf in ['1w', '1d'] else (7 if tf == '4h' else 10)
-                
-                tf_data = f"## Časový rámec: {tf}\n"
-                tf_data += f"Rozsah dat: {df.index[0]} až {df.index[-1]}\n"
-                tf_data += f"Počet svíček: {len(df)}\n"
-                tf_data += f"Posledních {num_candles} svíček:\n"
-                tf_data += f"{df[['open','high','low','close','volume']].tail(num_candles).to_markdown()}\n\n"
-                
-                patterns = patterns_by_tf[tf]
-                if patterns:
-                    tf_data += f"Poslední patterny:\n"
-                    for pattern in patterns[-8:]:  # Zobrazíme více patternů pro lepší analýzu
-                        tf_data += f"- {pattern[0]} na úrovni {pattern[2]:.2f}-{pattern[3]:.2f} ({pattern[1]})\n"
-                
-                timeframe_data.append(tf_data)
+    # Získáme aktuální cenu z posledního dataframe
+    latest_price = None
+    if '1d' in dataframes:
+        latest_price = dataframes['1d']['close'].iloc[-1]
+    elif '4h' in dataframes:
+        latest_price = dataframes['4h']['close'].iloc[-1]
 
-        # Získáme aktuální cenu z posledního dataframe
-        latest_price = None
-        if '1d' in dataframes:
-            latest_price = dataframes['1d']['close'].iloc[-1]
-        elif '4h' in dataframes:
-            latest_price = dataframes['4h']['close'].iloc[-1]
-
-        prompt = f"""Jste senior trader specializující se na price action analýzu. Analyzujte data s důrazem na všechny časové rámce, bez poskytování konkrétních vstupních bodů.
+    prompt = f"""Jste senior trader specializující se na price action analýzu. Analyzujte data s důrazem na všechny časové rámce, bez poskytování konkrétních vstupních bodů.
 
 Symbol: {symbol}
 Aktuální cena: {latest_price:.2f}
@@ -140,15 +140,15 @@ Aktuální cena: {latest_price:.2f}
 ## 1. 📊 DLOUHODOBÝ TREND (1W/1D)
 - Hlavní supportní zóny (min. 4 významné zóny definované jako rozsah cen, např. 86000-86200)
 - Hlavní resistenční zóny (min. 4 významné zóny definované jako rozsah cen, např. 89400-89600)
-- Fair Value Gaps (FVG) s přesnými úrovněmi cen
-- Order Blocks (OB) s přesnými úrovněmi cen
+- Fair Value Gaps (FVG) s přesnými úrovněmi cen (pokud existují)
+- Order Blocks (OB) s přesnými úrovněmi cen (pokud existují)
 - Fázová analýza trhu (akumulace/distribuce, trendové/nárazové pohyby)
 - Klíčové weekly/daily uzávěry
 
 ## 2. 🔍 STŘEDNĚDOBÝ KONTEXT (4H)
 - Pozice v rámci vyššího trendu
-- Významné cenové nerovnováhy (FVG)
-- Order Blocks na 4H timeframu
+- Významné cenové nerovnováhy (FVG) (pokud existují)
+- Order Blocks na 4H timeframu (pokud existují)
 - Objemové klastry
 - Hlavní supportní a resistenční zóny
 
@@ -162,153 +162,38 @@ Aktuální cena: {latest_price:.2f}
 - Neutrální scénář (konsolidace nebo range bound chování)
 
 ## 4. ⚠️ VÝZNAMNÉ ÚROVNĚ K SLEDOVÁNÍ
-- Denní pivot pointy
 - Důležité swingové high/low
 - ŽÁDNÉ KONKRÉTNÍ VSTUPY - pouze úrovně k sledování
+- Nezahrnujte sekce, pro které nemáte dostatek dat - pokud nemáte pivot pointy, prostě je nevyjmenovávejte
 
-Formát:
+DŮLEŽITÉ:
+- NEZAHRNUJTE žádné závěrečné shrnutí ani varování na konci analýzy
+- NEPIŠTE fráze jako "Tato analýza poskytuje přehled" nebo podobné shrnující věty
+- NEVKLÁDEJTE sekce, pro které nemáte data - pokud něco nelze určit, sekci vynechte
 - Přehledné a stručné odrážky
 - Pouze konkrétní informace, žádný vágní text
-- Nepoužívejte žádná varování ani 'AI' fráze (například vyhněte se 'vždy si ověřte aktuální tržní podmínky')
-- Časové razítko: {datetime.now().strftime("%d.%m.%Y %H:%M")}"""
+- Nepoužívejte žádná varování ani 'AI' fráze (například vyhněte se 'vždy si ověřte aktuální tržní podmínky')"""
 
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                max_tokens=3000
-            )
-            analysis = response.choices[0].message.content
-            
-            # Extrahování zón supportů a resistancí
-            support_zones = self.extract_zones_from_analysis(analysis, "support")
-            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
-            
-            # Extrahování scénářů pro vizualizaci
-            scenarios = self.extract_scenarios_from_analysis(analysis, latest_price)
-            
-            return analysis, support_zones, resistance_zones, scenarios
-            
-        except Exception as e:
-            raise Exception(f"Chyba při generování multi-timeframe analýzy: {str(e)}")
-
-    def extract_scenarios_from_analysis(self, analysis, current_price):
-        """
-        Extrahuje scénáře pro vizualizaci z textu analýzy.
+    try:
+        response = self.client.chat.completions.create(
+            model="gpt-4-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=3000
+        )
+        analysis = response.choices[0].message.content
         
-        Args:
-            analysis (str): Text analýzy
-            current_price (float): Aktuální cena
-            
-        Returns:
-            list: Seznam scénářů ve formátu [('bullish', target_price), ('bearish', target_price), ...]
-        """
-        scenarios = []
+        # Extrahování zón supportů a resistancí
+        support_zones = self.extract_zones_from_analysis(analysis, "support")
+        resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
         
-        # Hledat sekci "MOŽNÉ SCÉNÁŘE DALŠÍHO VÝVOJE" nebo podobnou
-        scenario_section = re.search(r'(MOŽNÉ SCÉNÁŘE|SCÉNÁŘE|SCENÁŘE|VÝVOJE)(.*?)(##|\Z)', 
-                                    analysis, re.DOTALL | re.IGNORECASE)
+        # Extrahování scénářů pro vizualizaci
+        scenarios = self.extract_scenarios_from_analysis(analysis, latest_price)
         
-        if scenario_section:
-            scenario_text = scenario_section.group(2)
-            
-            # Hledání bullish scénáře a ceny - přesnější pattern zaměřený na číselné cíle
-            bullish_target = None
-            bullish_section = re.search(r'[Bb]ullish.*?(\d{4,6})', scenario_text)
-            if bullish_section:
-                try:
-                    bullish_target = float(bullish_section.group(1).replace(',', '.'))
-                    if bullish_target > current_price * 1.005:  # Musí být aspoň 0.5% nad aktuální cenou
-                        scenarios.append(('bullish', bullish_target))
-                except (ValueError, IndexError):
-                    pass
-            
-            # Pokud nebyl nalezen konkrétní cíl, hledej i v jiných formátech
-            if not bullish_target:
-                bullish_patterns = [
-                    r"[Bb]ullish.*?(\d{4,6})",
-                    r"[Vv]zhůru.*?(\d{4,6})",
-                    r"[Rr]ůst.*?(\d{4,6})",
-                    r"[Cc]íl.*?(\d{4,6})"
-                ]
-                
-                for pattern in bullish_patterns:
-                    matches = re.findall(pattern, scenario_text)
-                    for match in matches:
-                        try:
-                            price = float(match.replace(',', '.'))
-                            if price > current_price * 1.005:  # Musí být aspoň 0.5% nad aktuální cenou
-                                scenarios.append(('bullish', price))
-                                break
-                        except (ValueError, IndexError):
-                            continue
-                    if len(scenarios) > 0 and scenarios[-1][0] == 'bullish':
-                        break
-            
-            # Hledání bearish scénáře a ceny - přesnější pattern zaměřený na číselné cíle
-            bearish_target = None
-            bearish_section = re.search(r'[Bb]earish.*?(\d{4,6})', scenario_text)
-            if bearish_section:
-                try:
-                    bearish_target = float(bearish_section.group(1).replace(',', '.'))
-                    if bearish_target < current_price * 0.995:  # Musí být aspoň 0.5% pod aktuální cenou
-                        scenarios.append(('bearish', bearish_target))
-                except (ValueError, IndexError):
-                    pass
-            
-            # Pokud nebyl nalezen konkrétní cíl, hledej i v jiných formátech
-            if not bearish_target:
-                bearish_patterns = [
-                    r"[Bb]earish.*?(\d{4,6})",
-                    r"[Pp]okles.*?(\d{4,6})",
-                    r"[Pp]ád.*?(\d{4,6})",
-                    r"[Dd]olů.*?(\d{4,6})"
-                ]
-                
-                for pattern in bearish_patterns:
-                    matches = re.findall(pattern, scenario_text)
-                    for match in matches:
-                        try:
-                            price = float(match.replace(',', '.'))
-                            if price < current_price * 0.995:  # Musí být aspoň 0.5% pod aktuální cenou
-                                scenarios.append(('bearish', price))
-                                break
-                        except (ValueError, IndexError):
-                            continue
-                    if len(scenarios) > 0 and scenarios[-1][0] == 'bearish':
-                        break
+        return analysis, support_zones, resistance_zones, scenarios
         
-        # Pokud jsme nenašli žádné scénáře, zkusíme prohledat celý text
-        if not scenarios:
-            # Obecný pattern pro nalezení cenových hodnot
-            price_pattern = r'\b(\d{4,6})\b'
-            prices = re.findall(price_pattern, analysis)
-            
-            prices = [float(p) for p in prices if p.isdigit()]
-            prices = sorted(list(set(prices)))  # Deduplikace a seřazení
-            
-            # Identifikace bullish a bearish cílů na základě aktuální ceny
-            bullish_target = None
-            bearish_target = None
-            
-            for price in prices:
-                if price > current_price * 1.05:  # 5% nad aktuální cenou
-                    if not bullish_target or price > bullish_target:
-                        bullish_target = price
-                elif price < current_price * 0.95:  # 5% pod aktuální cenou
-                    if not bearish_target or price < bearish_target:
-                        bearish_target = price
-            
-            if bullish_target:
-                scenarios.append(('bullish', bullish_target))
-            if bearish_target:
-                scenarios.append(('bearish', bearish_target))
-        
-        # Logování nalezených scénářů pro ladění
-        logger.info(f"Nalezené scénáře: {scenarios}")
-        
-        return scenarios
+    except Exception as e:
+        raise Exception(f"Chyba při generování multi-timeframe analýzy: {str(e)}")
 
     def process_data(self, klines_data):
         """
