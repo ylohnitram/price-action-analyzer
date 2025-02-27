@@ -28,7 +28,7 @@ def parse_arguments():
     parser.add_argument('-i', '--interval', type=str, default='30m',
                         choices=['1m','3m','5m','15m','30m','1h','2h','4h','6h','8h','12h','1d','1w'],
                         help='Časový interval (pouze pro single-timeframe analýzu)')
-    parser.add_argument('-d', '--days', type=int, default=3,
+    parser.add_argument('-d', '--days', type=int, default=5,
                         help='Počet dní historie (pouze pro single-timeframe analýzu)')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--complete', action='store_true',
@@ -41,12 +41,12 @@ def parse_arguments():
                         help='Podrobnější výpisy')
     parser.add_argument('--no-chart', action='store_true',
                         help='Nevytvářet grafy')
-    parser.add_argument('--chart-days', type=int, default=2,
-                        help='Počet dní dat k zobrazení v grafu (výchozí: 2)')
+    parser.add_argument('--chart-days', type=int, default=5,
+                        help='Počet dní dat k zobrazení v grafu (výchozí: 5)')
     
     return parser.parse_args()
 
-def run_complete_analysis(symbol, no_chart=False, chart_days=2):
+def run_complete_analysis(symbol, no_chart=False, chart_days=5):
     """
     Spustí kompletní analýzu pro všechny časové rámce.
     
@@ -142,7 +142,7 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=2):
         logger.error(traceback.format_exc())
         return False
 
-def run_analysis(symbol, interval, days, no_chart=False, chart_days=2):
+def run_analysis(symbol, interval, days, no_chart=False, chart_days=5):
     """
     Spustí analýzu pro jeden časový rámec.
     
@@ -228,14 +228,14 @@ def run_analysis(symbol, interval, days, no_chart=False, chart_days=2):
         logger.error(f"Chyba během analýzy: {str(e)}")
         return False
 
-def run_intraday_analysis(symbol, no_chart=False, chart_days=1):
+def run_intraday_analysis(symbol, no_chart=False, chart_days=5):
     """
     Spustí intraday analýzu zaměřenou na kratší časové rámce.
     
     Args:
         symbol (str): Obchodní symbol
         no_chart (bool): Nevytvářet grafy
-        chart_days (int): Počet dní v grafu (výchozí hodnota 1 pro intraday)
+        chart_days (int): Počet dní v grafu (výchozí hodnota 5 pro intraday)
         
     Returns:
         bool: True pokud byla analýza úspěšně dokončena
@@ -342,9 +342,7 @@ def main():
             success = run_complete_analysis(args.symbol, args.no_chart, args.chart_days)
         elif args.intraday:
             logger.info("Spouštím intraday analýzu")
-            # Pro intraday defaultně pouze 1 den dat
-            chart_days = min(1, args.chart_days) if args.chart_days != 2 else 1
-            success = run_intraday_analysis(args.symbol, args.no_chart, chart_days)
+            success = run_intraday_analysis(args.symbol, args.no_chart, args.chart_days)
         else:
             logger.info("Spouštím single-timeframe analýzu")
             success = run_analysis(args.symbol, args.interval, args.days, args.no_chart, args.chart_days)
