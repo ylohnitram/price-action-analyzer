@@ -4,6 +4,7 @@ import logging
 import argparse
 import sys
 import os
+import time
 from datetime import datetime
 
 from src.clients.binance_client import BinanceClient
@@ -88,6 +89,10 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=5):
         logger.info("Zpracovávám data")
         dataframes = analyzer.process_multi_timeframe_data(multi_tf_data)
         
+        # Výpis statistik pro lepší pochopení dat
+        for tf, df in dataframes.items():
+            logger.info(f"{tf} data: {len(df)} svíček od {df.index[0]} do {df.index[-1]}")
+        
         # Generování analýzy
         logger.info("Generuji kompletní AI analýzu")
         analysis, support_zones, resistance_zones, scenarios = analyzer.generate_multi_timeframe_analysis(symbol, dataframes)
@@ -108,7 +113,7 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=5):
             logger.info(f"Generuji graf s cenovými zónami a scénáři za posledních {chart_days} dní")
             chart_data = dataframes[chart_timeframe]
             
-            # Použití nového generátoru grafů (s realistickými bouncy)
+            # Použití generátoru grafů
             chart_path = chart_generator.generate_chart(
                 chart_data, 
                 support_zones, 
@@ -226,6 +231,8 @@ def run_analysis(symbol, interval, days, no_chart=False, chart_days=5):
         
     except Exception as e:
         logger.error(f"Chyba během analýzy: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False
 
 def run_intraday_analysis(symbol, no_chart=False, chart_days=5):
@@ -270,6 +277,13 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=5):
         logger.info("Zpracovávám data")
         dataframes = analyzer.process_multi_timeframe_data(intraday_data)
         
+        # Pro intraday analýzu - přidání logování pro diagnostiku dat
+        for tf, df in dataframes.items():
+            logger.info(f"{tf} data: {len(df)} svíček od {df.index[0]} do {df.index[-1]}")
+            if len(df) > 0:
+                logger.info(f"První svíčka {tf}: {df.iloc[0]['open']}, {df.iloc[0]['high']}, {df.iloc[0]['low']}, {df.iloc[0]['close']}, {df.iloc[0]['volume']}")
+                logger.info(f"Poslední svíčka {tf}: {df.iloc[-1]['open']}, {df.iloc[-1]['high']}, {df.iloc[-1]['low']}, {df.iloc[-1]['close']}, {df.iloc[-1]['volume']}")
+        
         # Generování analýzy
         logger.info("Generuji intraday AI analýzu")
         analysis, support_zones, resistance_zones = analyzer.generate_intraday_analysis(symbol, dataframes)
@@ -295,12 +309,33 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=5):
                 hours_to_show = min(48, chart_days * 24)
                 
                 logger.info(f"Generuji graf z {chart_tf} dat za posledních {hours_to_show} hodin")
+                
+                # Určení počtu svíček podle timeframe s přihlédnutím k max. počtu 96 pro lepší viditelnost
+                if chart_tf == '30m':
+                    candles = min(int(hours_to_show * 2), 96)  # 2 svíčky za hodinu, max 96
+                    logger.info(f"Počet 30m svíček k zobrazení: {candles}")
+                elif chart_tf == '5m':
+                    candles = min(int(hours_to_show * 12), 96)  # 12 svíček za hodinu, max 96
+                    logger.info(f"Počet 5m svíček k zobrazení: {candles}")
+                else:
+                    candles = 96  # Výchozí max. počet svíček
+                
+                # Explicitní vybírání posledních candles svíček pro lepší kontrolu
+                df_to_plot = dataframes[chart_tf].copy()
+                if len(df_to_plot) > candles:
+                    df_to_plot = df_to_plot.tail(candles)
+                
+                logger.info(f"Vybráno {len(df_to_plot)} svíček z celkových {len(dataframes[chart_tf])}")
+                
+                # Krátká pauza před generováním grafu pro jistotu
+                time.sleep(1)
+                
                 chart_path = chart_generator.generate_chart(
-                    dataframes[chart_tf], 
+                    df_to_plot,
                     support_zones, 
                     resistance_zones, 
                     symbol,
-                    hours_to_show=hours_to_show,  # Používáme hours_to_show místo days_to_show
+                    hours_to_show=hours_to_show,
                     timeframe=chart_tf,
                     analysis_text=analysis  # Předání textu analýzy pro lepší extrakci zón
                 )
@@ -354,6 +389,8 @@ def main():
         sys.exit(0)
     except Exception as e:
         logger.error(f"Neočekávaná chyba: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         sys.exit(1)
 
 if __name__ == "__main__":
