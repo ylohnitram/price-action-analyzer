@@ -252,13 +252,13 @@ class ChartGenerator:
             style=mpf_style,
             ax=ax1,
             volume=ax2,
-            title=title,
             ylabel='Price',
             ylabel_lower='Volume',
-            figscale=1.5,
             show_nontrading=False
         )
-        
+
+        ax1.set_title(title, fontsize=14, fontweight='bold')
+
         # Current price for reference
         current_price = plot_data['Close'].iloc[-1]
         
