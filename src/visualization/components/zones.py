@@ -1,5 +1,7 @@
 import numpy as np
 import logging
+from matplotlib.patches import Rectangle
+from matplotlib.lines import Line2D
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,10 @@ def draw_support_zones(ax, zones, start_date, colors):
         
     zone_added = False
     
+    # Získání limitů x-osy
+    xlim = ax.get_xlim()
+    xrange = xlim[1] - xlim[0]
+    
     # Seřazení zón vzestupně podle ceny
     sorted_zones = sorted(zones, key=lambda x: x[0])
     
@@ -30,26 +36,31 @@ def draw_support_zones(ax, zones, start_date, colors):
             color_idx = min(i, len(colors) - 1)
             color = colors[color_idx]
             
-            # Přidání vyplněné oblasti pro supportní zónu
-            ax.axhspan(s_min, s_max, facecolor=color, alpha=0.3, label=f'Support Zone' if i == 0 else "")
+            # Vytvoření obdélníku pro zónu přes celou šířku grafu
+            rect = Rectangle(
+                (xlim[0], s_min),  # (x, y) levého dolního rohu
+                xrange,  # šířka = celá viditelná část grafu
+                s_max - s_min,  # výška = rozsah zóny
+                facecolor=color,
+                alpha=0.2,  # průhlednost
+                edgecolor=color,
+                linestyle='--',
+                linewidth=1
+            )
+            ax.add_patch(rect)
             
-            # Přidání horizontálních čar na hranicích zóny pro lepší viditelnost
-            ax.axhline(y=s_min, color=color, linestyle='-', linewidth=1.0, alpha=0.7)
-            ax.axhline(y=s_max, color=color, linestyle='-', linewidth=1.0, alpha=0.7)
-            
-            # Přidání textového popisku pro supportní zónu
+            # Přidání popisku
             mid_point = (s_min + s_max) / 2
             ax.text(
-                start_date, 
-                mid_point, 
-                f"S{i+1}: {mid_point:.0f}", 
-                color='white', 
-                fontweight='bold', 
+                xlim[0] + xrange * 0.02,  # 2% od levého okraje
+                mid_point,
+                f"S{i+1}: {mid_point:.0f}",
+                color='white',
+                fontweight='bold',
                 fontsize=9,
                 bbox=dict(
-                    facecolor=color, 
-                    alpha=0.9, 
-                    edgecolor=color, 
+                    facecolor=color,
+                    alpha=0.7,
                     boxstyle='round,pad=0.3'
                 )
             )
@@ -76,6 +87,10 @@ def draw_resistance_zones(ax, zones, start_date, colors):
         
     zone_added = False
     
+    # Získání limitů x-osy
+    xlim = ax.get_xlim()
+    xrange = xlim[1] - xlim[0]
+    
     # Seřazení zón vzestupně podle ceny
     sorted_zones = sorted(zones, key=lambda x: x[0])
     
@@ -85,26 +100,31 @@ def draw_resistance_zones(ax, zones, start_date, colors):
             color_idx = min(i, len(colors) - 1)
             color = colors[color_idx]
             
-            # Přidání vyplněné oblasti pro resistenční zónu
-            ax.axhspan(r_min, r_max, facecolor=color, alpha=0.3, label=f'Resistance Zone' if i == 0 else "")
+            # Vytvoření obdélníku pro zónu přes celou šířku grafu
+            rect = Rectangle(
+                (xlim[0], r_min),  # (x, y) levého dolního rohu
+                xrange,  # šířka = celá viditelná část grafu
+                r_max - r_min,  # výška = rozsah zóny
+                facecolor=color,
+                alpha=0.2,  # průhlednost
+                edgecolor=color,
+                linestyle='--',
+                linewidth=1
+            )
+            ax.add_patch(rect)
             
-            # Přidání horizontálních čar na hranicích zóny pro lepší viditelnost
-            ax.axhline(y=r_min, color=color, linestyle='-', linewidth=1.0, alpha=0.7)
-            ax.axhline(y=r_max, color=color, linestyle='-', linewidth=1.0, alpha=0.7)
-            
-            # Přidání textového popisku pro resistenční zónu
+            # Přidání popisku
             mid_point = (r_min + r_max) / 2
             ax.text(
-                start_date, 
-                mid_point, 
-                f"R{i+1}: {mid_point:.0f}", 
-                color='white', 
-                fontweight='bold', 
+                xlim[0] + xrange * 0.02,  # 2% od levého okraje
+                mid_point,
+                f"R{i+1}: {mid_point:.0f}",
+                color='white',
+                fontweight='bold',
                 fontsize=9,
                 bbox=dict(
-                    facecolor=color, 
-                    alpha=0.9, 
-                    edgecolor=color, 
+                    facecolor=color,
+                    alpha=0.7,
                     boxstyle='round,pad=0.3'
                 )
             )

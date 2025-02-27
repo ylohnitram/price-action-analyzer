@@ -513,10 +513,7 @@ class ChartGenerator:
         # Získání barevného schématu
         colors = get_color_scheme()
         candle_colors = colors['candle_colors']
-        zone_colors = {
-            'support': colors['zone_colors']['support'][0],
-            'resistance': colors['zone_colors']['resistance'][0]
-        }
+        zone_colors = colors['zone_colors']
         
         # Nastavení stylu grafu
         mc = mpf.make_marketcolors(
@@ -556,15 +553,34 @@ class ChartGenerator:
         # Vytvoření základního grafu
         fig, axes = mpf.plot(plot_data, **kwargs)
         
+        # Importujeme funkce pro vykreslování zón
+        from src.visualization.components.zones import draw_support_zones, draw_resistance_zones
+        
         # Přidání support a resistance zón
         price_ax = axes[0]
-        legend_elements = self.draw_support_resistance_zones(
+        legend_elements = []
+        
+        # Vykreslení supportních zón
+        support_added = draw_support_zones(
             price_ax, 
             support_zones, 
+            plot_data.index[0],
+            zone_colors['support']
+        )
+        
+        # Vykreslení resistenčních zón
+        resistance_added = draw_resistance_zones(
+            price_ax, 
             resistance_zones, 
             plot_data.index[0],
-            zone_colors=zone_colors
+            zone_colors['resistance']
         )
+        
+        # Přidání do legendy
+        if support_added:
+            legend_elements.append(Line2D([0], [0], color=zone_colors['support'][0], lw=2, linestyle='--', label='Support Zone'))
+        if resistance_added:
+            legend_elements.append(Line2D([0], [0], color=zone_colors['resistance'][0], lw=2, linestyle='--', label='Resistance Zone'))
         
         # Přidání legendy
         if legend_elements:
