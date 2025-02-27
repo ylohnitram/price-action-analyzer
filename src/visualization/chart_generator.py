@@ -9,9 +9,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import mplfinance as mpf
 import logging
-from matplotlib.patches import FancyArrowPatch
 import matplotlib.dates as mdates
 from matplotlib.lines import Line2D
+import re
 
 # Import konfiguračních modulů
 from src.visualization.config.colors import get_color_scheme, get_candle_colors, get_zone_colors, get_scenario_colors
@@ -21,10 +21,75 @@ logger = logging.getLogger(__name__)
 
 class ChartGenerator:
     """Class for generating candlestick charts with support and resistance zones and trend scenarios."""
+    
+    def extract_zones_from_text(self, analysis_text):
+        """
+        Extrahuje supportní a resistenční zóny přímo z textu analýzy.
+        
+        Args:
+            analysis_text (str): Text analýzy
+            
+        Returns:
+            tuple: (support_zones, resistance_zones)
+        """
+        support_zones = []
+        resistance_zones = []
+        
+        # Hledání supportů
+        support_pattern = r"Support.*?(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)"
+        support_matches = re.findall(support_pattern, analysis_text, re.IGNORECASE | re.DOTALL)
+        
+        for match in support_matches:
+            try:
+                s_min = float(match[0].replace(',', '.'))
+                s_max = float(match[1].replace(',', '.'))
+                support_zones.append((s_min, s_max))
+            except (ValueError, IndexError):
+                pass
+                
+        # Alternativní pattern pro supportní zóny
+        alt_support_pattern = r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*\([Ss]upport"
+        alt_support_matches = re.findall(alt_support_pattern, analysis_text)
+        for match in alt_support_matches:
+            try:
+                s_min = float(match[0].replace(',', '.'))
+                s_max = float(match[1].replace(',', '.'))
+                support_zones.append((s_min, s_max))
+            except (ValueError, IndexError):
+                pass
+        
+        # Hledání resistencí
+        resistance_pattern = r"[Rr]esist.*?(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)"
+        resistance_matches = re.findall(resistance_pattern, analysis_text, re.IGNORECASE | re.DOTALL)
+        
+        for match in resistance_matches:
+            try:
+                r_min = float(match[0].replace(',', '.'))
+                r_max = float(match[1].replace(',', '.'))
+                resistance_zones.append((r_min, r_max))
+            except (ValueError, IndexError):
+                pass
+                
+        # Alternativní pattern pro resistenční zóny
+        alt_resistance_pattern = r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*\([Rr]esist"
+        alt_resistance_matches = re.findall(alt_resistance_pattern, analysis_text)
+        for match in alt_resistance_matches:
+            try:
+                r_min = float(match[0].replace(',', '.'))
+                r_max = float(match[1].replace(',', '.'))
+                resistance_zones.append((r_min, r_max))
+            except (ValueError, IndexError):
+                pass
+        
+        # Deduplikace a seřazení
+        support_zones = list(set(support_zones))
+        resistance_zones = list(set(resistance_zones))
+        
+        return support_zones, resistance_zones
 
     def generate_chart(self, df, support_zones, resistance_zones, symbol, 
                        filename=None, days_to_show=2, hours_to_show=None, 
-                       timeframe=None, scenarios=None):
+                       timeframe=None, scenarios=None, analysis_text=None):
         """
         Generates a candlestick chart with support and resistance zones and trend scenarios.
         
@@ -129,20 +194,69 @@ class ChartGenerator:
         # Configure figure size and proportions
         figsize = (12, 8)
 
-        style = mpf.make_mpf_style(
-            base_mpf_style='yahoo',
+        # Nejdříve vytvoříme jednoduchý candlestick chart, aby bylo zajištěno správné vykreslení svíček
+        custom_style = mpf.make_mpf_style(
             marketcolors=mc,
-            gridstyle='-',
+            gridstyle='--',
             gridcolor='#e6e6e6',
             gridaxis='both',
-            facecolor='white',
-            rc={'figure.figsize': figsize}
+            facecolor='white'
         )
 
-        # Create custom addplot objects for support and resistance zones
-        addplot = []
+        # Vytvoříme základní figuru se svíčkami
+        fig = plt.figure(figsize=figsize, dpi=100)
+        gs = fig.add_gridspec(2, 1, height_ratios=[4, 1], hspace=0.05)
         
-        # Prepare data for support and resistance zones
+        # Přidáme podgrafy (axes)
+        ax1 = fig.add_subplot(gs[0])
+        ax2 = fig.add_subplot(gs[1], sharex=ax1)
+        
+        # Vykreslíme svíčky a volume na připravené osy
+        mpf.plot(
+            plot_data, 
+            type='candle',
+            style=custom_style,
+            ax=ax1,
+            volume=ax2,
+            datetime_format='%Y-%m-%d',
+            show_nontrading=False,
+            xrotation=45
+        )
+        
+        # Nastavíme titulek
+        title = f"{symbol} - {timeframe} Timeframe"
+        if timeframe in ['1d', '1w']:
+            title += " (Long-term Analysis)"
+        elif timeframe in ['4h', '1h']:
+            title += " (Medium-term Analysis)"
+        else:
+            title += " (Short-term Analysis)"
+        ax1.set_title(title, fontsize=12)
+
+        # Try to extract zones from analysis text if provided
+        if analysis_text and (not support_zones or not resistance_zones):
+            extracted_support, extracted_resistance = self.extract_zones_from_text(analysis_text)
+            
+            # Use extracted zones if original zones are empty
+            if not support_zones:
+                support_zones = extracted_support
+                logger.info(f"Extracted {len(support_zones)} support zones from analysis text")
+            
+            if not resistance_zones:
+                resistance_zones = extracted_resistance
+                logger.info(f"Extracted {len(resistance_zones)} resistance zones from analysis text")
+        
+        # Sort zones by price level for better labeling
+        if support_zones:
+            support_zones.sort(key=lambda x: x[0])
+        if resistance_zones:
+            resistance_zones.sort(key=lambda x: x[0], reverse=True)
+        
+        # Current price for reference
+        current_price = plot_data['Close'].iloc[-1]
+        
+        # Legend elements for the plot
+        legend_elements = []
         s_zones_added = 0
         r_zones_added = 0
         
@@ -155,30 +269,8 @@ class ChartGenerator:
         else:
             title += " (Short-term Analysis)"
         
-        # Create dictionary of kwargs for mplfinance plot
-        kwargs = {
-            'type': 'candle',
-            'style': style,
-            'figsize': figsize,
-            'volume': True,
-            'panel_ratios': (4, 1),
-            'title': title,
-            'tight_layout': True,
-            'datetime_format': '%Y-%m-%d',
-            'xrotation': 45,
-            'returnfig': True
-        }
-        
-        # Create the plot with mplfinance
-        fig, axes = mpf.plot(plot_data, **kwargs)
-        
-        # Get the price and volume axes
-        ax1 = axes[0]  # Price axis
-        ax2 = axes[2]  # Volume axis
-        
-        # Legend elements for the plot
-        legend_elements = []
-        
+        ax1.set_title(title, fontsize=14, fontweight='bold')
+
         # Calculate date range for future projections
         date_range = (plot_data.index[-1] - plot_data.index[0]).days
         projection_days = tf_config['projection_days']
@@ -200,19 +292,10 @@ class ChartGenerator:
         price_range = y_max - y_min
         y_padding = price_range * 0.05
         ax1.set_ylim(y_min - y_padding, y_max + y_padding)
-        
+
         # Get support and resistance zone colors from config
         support_colors = zone_colors['support']
         resistance_colors = zone_colors['resistance']
-        
-        # Sort zones by price level for better labeling
-        if support_zones:
-            support_zones.sort(key=lambda x: x[0])
-        if resistance_zones:
-            resistance_zones.sort(key=lambda x: x[0], reverse=True)
-        
-        # Current price for reference
-        current_price = plot_data['Close'].iloc[-1]
         
         # Add support zones
         for i, (s_min, s_max) in enumerate(support_zones or []):

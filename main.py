@@ -116,7 +116,8 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=2):
                 symbol,
                 days_to_show=chart_days,
                 timeframe=chart_timeframe,
-                scenarios=scenarios
+                scenarios=scenarios,
+                analysis_text=analysis  # Předání textu analýzy pro lepší extrakci zón
             )
             logger.info(f"Graf vygenerován: {chart_path}")
         
@@ -204,7 +205,8 @@ def run_analysis(symbol, interval, days, no_chart=False, chart_days=2):
                 resistance_zones, 
                 symbol,
                 days_to_show=chart_days,
-                timeframe=interval  # Předáváme informaci o timeframe
+                timeframe=interval,  # Předáváme informaci o timeframe
+                analysis_text=analysis  # Předání textu analýzy pro lepší extrakci zón
             )
             logger.info(f"Graf vygenerován: {chart_path}")
         
@@ -300,7 +302,8 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=1):
                     resistance_zones, 
                     symbol,
                     days_to_show=days_to_show,
-                    timeframe=chart_tf  # Předáváme informaci o timeframe
+                    timeframe=chart_tf,  # Předáváme informaci o timeframe
+                    analysis_text=analysis  # Předání textu analýzy pro lepší extrakci zón
                 )
                 logger.info(f"Graf vygenerován: {chart_path}")
         
