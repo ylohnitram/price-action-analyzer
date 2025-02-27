@@ -125,10 +125,11 @@ class ChartGenerator:
         if not isinstance(df_copy.index, pd.DatetimeIndex):
             df_copy.index = pd.to_datetime(df_copy.index)
         
-        # Trim data to the requested time range - DŮLEŽITÉ: POUŽIJ POSLEDNÍCH N SVÍČEK MÍSTO ČASOVÉHO ROZSAHU!
+        # Trim data to the requested time range - POUŽIJ POSLEDNÍCH N SVÍČEK MÍSTO ČASOVÉHO ROZSAHU
         if hours_to_show:
             # Pro intraday použijme fixní počet svíček místo času
-            num_candles = min(hours_to_show * 2, len(df_copy))  # Přibližný odhad - 2 svíčky na hodinu
+            # Oprava - používáme integer místo float
+            num_candles = min(int(hours_to_show * 2), len(df_copy))  # Přibližný odhad - 2 svíčky na hodinu
             plot_data = df_copy.tail(num_candles).copy()
         else:
             # Pro denní grafy použijeme fixní počet svíček odpovídající přibližně počtu dnů
@@ -142,7 +143,8 @@ class ChartGenerator:
             elif timeframe == '30m':
                 candles_per_day = 48
             
-            num_candles = min(days_to_show * candles_per_day, len(df_copy))
+            # Oprava - používáme integer místo float
+            num_candles = min(int(days_to_show * candles_per_day), len(df_copy))
             plot_data = df_copy.tail(num_candles).copy()
         
         # Nastavení parametrů pro mplfinance
