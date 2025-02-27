@@ -195,28 +195,122 @@ DŮLEŽITÉ:
         except Exception as e:
             raise Exception(f"Chyba při generování multi-timeframe analýzy: {str(e)}")
 
-    def process_data(self, klines_data):
+    def extract_scenarios_from_analysis(self, analysis, current_price):
         """
-        Zpracuje surová data z Binance API do pandas DataFrame.
-       
+        Extrahuje scénáře pro vizualizaci z textu analýzy.
+        
         Args:
-            klines_data (list): Seznam svíček z Binance API
+            analysis (str): Text analýzy
+            current_price (float): Aktuální cena
             
         Returns:
-            pandas.DataFrame: Zpracovaná data
+            list: Seznam scénářů ve formátu [('bullish', target_price), ('bearish', target_price), ...]
         """
-        df = pd.DataFrame(klines_data, columns=[
-            'timestamp', 'open', 'high', 'low', 'close', 'volume',
-            'close_time', 'quote_volume', 'trades', 'taker_buy_base',
-            'taker_buy_quote', 'ignore'
-        ])
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        df.set_index('timestamp', inplace=True)
-       
-        for col in ['open', 'high', 'low', 'close', 'volume']:
-            df[col] = df[col].astype(float)
-           
-        return df
+        scenarios = []
+        
+        # Hledat sekci "MOŽNÉ SCÉNÁŘE DALŠÍHO VÝVOJE" nebo podobnou
+        scenario_section = re.search(r'(MOŽNÉ SCÉNÁŘE|SCÉNÁŘE|SCENÁŘE|VÝVOJE)(.*?)(##|\Z)', 
+                                    analysis, re.DOTALL | re.IGNORECASE)
+        
+        if scenario_section:
+            scenario_text = scenario_section.group(2)
+            
+            # Hledání bullish scénáře a ceny - přesnější pattern zaměřený na číselné cíle
+            bullish_target = None
+            bullish_section = re.search(r'[Bb]ullish.*?(\d{4,6})', scenario_text)
+            if bullish_section:
+                try:
+                    bullish_target = float(bullish_section.group(1).replace(',', '.'))
+                    if bullish_target > current_price * 1.005:  # Musí být aspoň 0.5% nad aktuální cenou
+                        scenarios.append(('bullish', bullish_target))
+                except (ValueError, IndexError):
+                    pass
+            
+            # Pokud nebyl nalezen konkrétní cíl, hledej i v jiných formátech
+            if not bullish_target:
+                bullish_patterns = [
+                    r"[Bb]ullish.*?(\d{4,6})",
+                    r"[Vv]zhůru.*?(\d{4,6})",
+                    r"[Rr]ůst.*?(\d{4,6})",
+                    r"[Cc]íl.*?(\d{4,6})"
+                ]
+                
+                for pattern in bullish_patterns:
+                    matches = re.findall(pattern, scenario_text)
+                    for match in matches:
+                        try:
+                            price = float(match.replace(',', '.'))
+                            if price > current_price * 1.005:  # Musí být aspoň 0.5% nad aktuální cenou
+                                scenarios.append(('bullish', price))
+                                break
+                        except (ValueError, IndexError):
+                            continue
+                    if len(scenarios) > 0 and scenarios[-1][0] == 'bullish':
+                        break
+            
+            # Hledání bearish scénáře a ceny - přesnější pattern zaměřený na číselné cíle
+            bearish_target = None
+            bearish_section = re.search(r'[Bb]earish.*?(\d{4,6})', scenario_text)
+            if bearish_section:
+                try:
+                    bearish_target = float(bearish_section.group(1).replace(',', '.'))
+                    if bearish_target < current_price * 0.995:  # Musí být aspoň 0.5% pod aktuální cenou
+                        scenarios.append(('bearish', bearish_target))
+                except (ValueError, IndexError):
+                    pass
+            
+            # Pokud nebyl nalezen konkrétní cíl, hledej i v jiných formátech
+            if not bearish_target:
+                bearish_patterns = [
+                    r"[Bb]earish.*?(\d{4,6})",
+                    r"[Pp]okles.*?(\d{4,6})",
+                    r"[Pp]ád.*?(\d{4,6})",
+                    r"[Dd]olů.*?(\d{4,6})"
+                ]
+                
+                for pattern in bearish_patterns:
+                    matches = re.findall(pattern, scenario_text)
+                    for match in matches:
+                        try:
+                            price = float(match.replace(',', '.'))
+                            if price < current_price * 0.995:  # Musí být aspoň 0.5% pod aktuální cenou
+                                scenarios.append(('bearish', price))
+                                break
+                        except (ValueError, IndexError):
+                            continue
+                    if len(scenarios) > 0 and scenarios[-1][0] == 'bearish':
+                        break
+        
+        # Pokud jsme nenašli žádné scénáře, zkusíme prohledat celý text
+        if not scenarios:
+            # Obecný pattern pro nalezení cenových hodnot
+            price_pattern = r'\b(\d{4,6})\b'
+            prices = re.findall(price_pattern, analysis)
+            
+            prices = [float(p) for p in prices if p.isdigit()]
+            prices = sorted(list(set(prices)))  # Deduplikace a seřazení
+            
+            # Identifikace bullish a bearish cílů na základě aktuální ceny
+            bullish_target = None
+            bearish_target = None
+            
+            for price in prices:
+                if price > current_price * 1.05:  # 5% nad aktuální cenou
+                    if not bullish_target or price > bullish_target:
+                        bullish_target = price
+                elif price < current_price * 0.95:  # 5% pod aktuální cenou
+                    if not bearish_target or price < bearish_target:
+                        bearish_target = price
+            
+            if bullish_target:
+                scenarios.append(('bullish', bullish_target))
+            if bearish_target:
+                scenarios.append(('bearish', bearish_target))
+        
+        # Logování nalezených scénářů pro ladění
+        logger.info(f"Nalezené scénáře: {scenarios}")
+        
+        return scenarios
 
     def extract_zones_from_analysis(self, analysis, zone_type):
         """
@@ -281,6 +375,29 @@ DŮLEŽITÉ:
             zones = zones[:8]
         
         return zones
+
+    def process_data(self, klines_data):
+        """
+        Zpracuje surová data z Binance API do pandas DataFrame.
+       
+        Args:
+            klines_data (list): Seznam svíček z Binance API
+            
+        Returns:
+            pandas.DataFrame: Zpracovaná data
+        """
+        df = pd.DataFrame(klines_data, columns=[
+            'timestamp', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+            'taker_buy_quote', 'ignore'
+        ])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df.set_index('timestamp', inplace=True)
+       
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = df[col].astype(float)
+           
+        return df
 
     def process_multi_timeframe_data(self, multi_tf_data):
         """
