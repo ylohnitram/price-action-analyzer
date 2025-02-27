@@ -235,7 +235,7 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=5):
     Args:
         symbol (str): Obchodní symbol
         no_chart (bool): Nevytvářet grafy
-        chart_days (int): Počet dní v grafu (výchozí hodnota 5 pro intraday)
+        chart_days (int): Počet dní v grafu (výchozí hodnota 5)
         
     Returns:
         bool: True pokud byla analýza úspěšně dokončena
@@ -277,7 +277,7 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=5):
         # Přidáme nadpis k analýze
         analysis = f"# Intraday Price Action Analýza {symbol}\n\n{analysis}"
         
-        # Generování grafu - nikdy nepoužívat 4h timeframe pro intraday
+        # Generování grafu
         chart_path = None
         if not no_chart:
             # Pro intraday analýzu preferujeme 30m nebo 5m data
@@ -293,7 +293,6 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=5):
             if chart_tf:
                 # Maximálně 48 hodin dat pro intraday graf
                 hours_to_show = min(48, chart_days * 24)
-                days_to_show = hours_to_show / 24
                 
                 logger.info(f"Generuji graf z {chart_tf} dat za posledních {hours_to_show} hodin")
                 chart_path = chart_generator.generate_chart(
@@ -301,8 +300,8 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=5):
                     support_zones, 
                     resistance_zones, 
                     symbol,
-                    days_to_show=days_to_show,
-                    timeframe=chart_tf,  # Předáváme informaci o timeframe
+                    hours_to_show=hours_to_show,  # Používáme hours_to_show místo days_to_show
+                    timeframe=chart_tf,
                     analysis_text=analysis  # Předání textu analýzy pro lepší extrakci zón
                 )
                 logger.info(f"Graf vygenerován: {chart_path}")
@@ -324,6 +323,8 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=5):
         
     except Exception as e:
         logger.error(f"Chyba během intraday analýzy: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False
 
 def main():

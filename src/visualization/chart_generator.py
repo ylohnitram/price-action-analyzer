@@ -272,17 +272,17 @@ class ChartGenerator:
             candles_to_show = max(60, min(len(df_copy), 150))
             
         if hours_to_show:
-            # Override with hours if provided
+            # Override with hours if provided - IMPORTANT: Converting to int
             if timeframe == '1h':
-                candles_to_show = min(hours_to_show, len(df_copy))
+                candles_to_show = min(int(hours_to_show), len(df_copy))
             elif timeframe == '30m':
-                candles_to_show = min(hours_to_show * 2, len(df_copy))
+                candles_to_show = min(int(hours_to_show * 2), len(df_copy))
             elif timeframe == '15m':
-                candles_to_show = min(hours_to_show * 4, len(df_copy))
+                candles_to_show = min(int(hours_to_show * 4), len(df_copy))
             elif timeframe == '5m':
-                candles_to_show = min(hours_to_show * 12, len(df_copy))
+                candles_to_show = min(int(hours_to_show * 12), len(df_copy))
             elif timeframe == '1m':
-                candles_to_show = min(hours_to_show * 60, len(df_copy))
+                candles_to_show = min(int(hours_to_show * 60), len(df_copy))
         
         # Select data to plot
         plot_data = df_copy.tail(candles_to_show).copy()
