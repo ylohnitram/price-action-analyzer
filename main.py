@@ -90,22 +90,33 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=2):
         
         # Generování analýzy
         logger.info("Generuji kompletní AI analýzu")
-        analysis, support_zones, resistance_zones = analyzer.generate_multi_timeframe_analysis(symbol, dataframes)
+        analysis, support_zones, resistance_zones, scenarios = analyzer.generate_multi_timeframe_analysis(symbol, dataframes)
         
         # Přidáme nadpis k analýze
         analysis = f"# Kompletní Price Action Analýza {symbol}\n\n{analysis}"
         
-        # Generování grafu
+        # Generování grafu - kompletní analýza používá daily timeframe pro graf
         chart_path = None
-        if not no_chart and '1d' in dataframes:
-            logger.info(f"Generuji graf s cenovými zónami za posledních {chart_days} dní")
+        chart_timeframe = '1d'
+        
+        # Pokud nemáme daily data, zkusíme 4h
+        if chart_timeframe not in dataframes and '4h' in dataframes:
+            chart_timeframe = '4h'
+            logger.info(f"Daily data nejsou k dispozici, použiji {chart_timeframe} pro graf")
+        
+        if not no_chart and chart_timeframe in dataframes:
+            logger.info(f"Generuji graf s cenovými zónami a scénáři za posledních {chart_days} dní")
+            chart_data = dataframes[chart_timeframe]
+            
+            # Použití nového generátoru grafů (s realistickými bouncy)
             chart_path = chart_generator.generate_chart(
-                dataframes['1d'], 
+                chart_data, 
                 support_zones, 
                 resistance_zones, 
                 symbol,
                 days_to_show=chart_days,
-                timeframe='1d'  # Předáváme informaci o timeframe
+                timeframe=chart_timeframe,
+                scenarios=scenarios
             )
             logger.info(f"Graf vygenerován: {chart_path}")
         
@@ -126,6 +137,8 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=2):
         
     except Exception as e:
         logger.error(f"Chyba během kompletní analýzy: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False
 
 def run_analysis(symbol, interval, days, no_chart=False, chart_days=2):

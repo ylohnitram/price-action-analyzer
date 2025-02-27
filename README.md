@@ -2,7 +2,7 @@
 
 # Price Action Analyzer
 
-Automatizovaný nástroj pro komplexní analýzu price action dat z Binance pomocí AI. Aplikace stahuje OHLCV data, detekuje klíčové price action patterny a generuje podrobnou analýzu pro různé obchodní strategie, kterou odesílá do Telegram kanálu.
+Automatizovaný nástroj pro komplexní analýzu price action dat z Binance pomocí AI. Aplikace stahuje OHLCV data, detekuje klíčové price action patterny a generuje podrobnou analýzu tržní struktury s vizualizací možných scénářů, kterou odesílá do Telegram kanálu.
 
 ## Funkce
 
@@ -22,7 +22,9 @@ Automatizovaný nástroj pro komplexní analýzu price action dat z Binance pomo
   - Cenové mezery (Fair Value Gaps)
   - Silné zóny (Order Blocks)
   - Falešné průrazy (Liquidity Sweeps)
+  - Swingová high/low
 - Generování komplexní analýzy pomocí AI (OpenAI GPT-4)
+- Vizualizace potenciálních scénářů pomocí směrových šipek v grafu
 - Odesílání výsledků do Telegram kanálu
 - Automatické spouštění pomocí GitHub Actions
 
@@ -79,6 +81,7 @@ Parametry:
 - `-i, --interval`: Časový interval pro single-timeframe analýzu (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w)
 - `-d, --days`: Počet dní historie pro single-timeframe analýzu
 - `-v, --verbose`: Podrobnější logování
+- `--chart-days`: Počet dní k zobrazení v grafu (výchozí: 2)
 
 ### Automatizace pomocí GitHub Actions
 
@@ -91,7 +94,7 @@ Parametry:
 
 3. Workflow spouští dva typy analýz:
    - Kompletní analýza: Každý pracovní den v 7:30 UTC
-   - Intraday analýza: Každé 2 hodiny během obchodního dne (8:30, 10:30, 12:30, 14:30, 16:30, 18:30 UTC)
+   - Intraday analýza: Každé 2 hodiny během obchodního dne (9:30, 11:30, 13:30, 15:30, 17:30, 19:30, 21:30 UTC)
 
 4. Pro manuální spuštění:
    - Přejděte na záložku "Actions"
@@ -128,10 +131,31 @@ Aplikace je rozdělena do několika modulů s jasně definovanou zodpovědností
 
 - **BinanceClient**: Stahování dat z Binance API
 - **PriceActionAnalyzer**: Analytická část - zpracování dat, detekce patternů, generování textové analýzy
-- **ChartGenerator**: Vizualizační část - generování grafů s cenovými zónami
+- **ChartGenerator**: Vizualizační část - generování grafů s cenovými zónami a šipkami s potenciálními scénáři
 - **TelegramBot**: Odesílání notifikací a reportů
 
 Toto rozdělení zajišťuje lepší testovatelnost a udržovatelnost kódu.
+
+## Nové funkce v poslední verzi
+
+### Vizualizace scénářů
+
+- V kompletní analýze jsou nyní zobrazeny potenciální scénáře vývoje ceny pomocí barevných šipek v grafu
+- Bullish scénáře jsou znázorněny zelenými šipkami směřujícími vzhůru
+- Bearish scénáře jsou znázorněny červenými šipkami směřujícími dolů
+- Grafy obsahují jasné označení klíčových cenových zón a frekventovaných oblastí
+
+### Vylepšená detekce patternů
+
+- Přesnější identifikace Fair Value Gaps (FVG)
+- Lepší rozpoznávání Order Blocks (OB)
+- Detekce swingových high/low bodů
+- Pokročilé označení falešných průrazů (liquidity sweeps)
+
+### Přizpůsobené výstupy
+
+- Kompletní analýza se zaměřuje na identifikaci zón a potenciálních scénářů bez konkrétních vstupů
+- Intraday analýza stále poskytuje konkrétní obchodní příležitosti s přesnými úrovněmi
 
 ## Příklad výstupu
 
@@ -140,51 +164,69 @@ Toto rozdělení zajišťuje lepší testovatelnost a udržovatelnost kódu.
 ```
 **Kompletní Price Action Analýza BTCUSDT**
 
-## Tržní kontext (Weekly/Daily)
+## DLOUHODOBÝ TREND (Weekly/Daily)
 
-### Dlouhodobý trend
-- **Weekly**: BTC se nachází v býčím trendu od října 2023 ($25,400 → $73,800)
-- **Poslední týdny**: Konsolidace po dosažení ATH $73,800, s podporou na úrovni $63,200
-- **Hlavní S/R zóny**:
-  - Support: $63,200 (dvojité dno na týdenním timeframe)
-  - Support: $59,400 (významná akumulační zóna z ledna 2024)
-  - Resistance: $73,800 (ATH)
+### Klíčové úrovně
+- **Supportní zóny**:
+  - 64,500-65,200 (silná objemová zóna)
+  - 62,800-63,300 (bývalá rezistence, nyní support)
+  - 59,200-59,800 (významná akumulační zóna)
+  - 57,400-57,800 (týdenní demand zóna)
+  
+- **Resistenční zóny**:
+  - 67,400-67,800 (medvědí order block)
+  - 69,200-69,800 (silný supply level)
+  - 71,500-72,000 (bývalý ATH rezistence)
+  - 73,600-74,000 (současný ATH)
 
-### Daily timeframe
-- Formace **býčí vlajky** - typický konsolidační pattern v býčím trendu
-- Poslední 2 týdny se cena pohybuje v klesajícím klínu
-- Významný objemový cluster na $64,500 (oblast nakupování)
+- **Fair Value Gaps**:
+  - Bullish FVG: 66,400-66,900 (nevyplněná mezera z 20.2.)
+  - Bearish FVG: 70,200-70,600 (nevyplněná mezera ze 7.3.)
 
-## Střednědobý pohled (4h)
+### Tržní struktura
+- BTC je v dlouhodobém býčím trendu od Q4 2023
+- Aktuálně se nachází v konsolidační fázi po dosažení ATH
+- Tvorba vyšších low naznačuje pokračující sílu býků
+- Klesající volume během poslední konsolidace naznačuje vyčerpání prodejců
 
-- **Struktura trhu**: Série nižších high/low (krátkodobý medvědí trend)
-- **Klíčové zóny**:
-  - Support: $64,200-$63,900 (silná zóna s vysokým objemem)
-  - Resistance: $66,800-$67,200 (úroveň odmítnutí s falešným průrazem)
-- **Cenové mezery**: Významná mezera na $65,700-$66,100
-- **Objemový profil**: Klesající objem během klesajícího trendu naznačuje vyčerpání prodejců
+## STŘEDNĚDOBÝ KONTEXT (4h)
 
-## Krátkodobé příležitosti (30m/5m)
+- Formování sestupného klínu (bullish reversal pattern)
+- Série nižších high/low v krátkodobém downtrend
+- Klíčové objemové klastry na úrovních:
+  - 65,200-65,600 (vysoký objem nákupů)
+  - 68,800-69,200 (vysoký objem prodejů)
+- Významná formace double bottom na 63,800
 
-### 30m Timeframe
-- **Silná býčí zóna** na $64,100-$64,300 (3 zamítnutí medvědů)
-- **Falešný průraz** minima z 12.3. ($63,900)
-- **Potenciální vstup**: Long nad $64,500 s SL pod $63,800
+## MOŽNÉ SCÉNÁŘE
 
-### 5m Timeframe
-- **Cenová mezera** detekována mezi $64,700-$64,850
-- **Bullish Order Block** na $64,200 (s 85% tělem a rostoucím objemem)
-- **Falešný průraz** na $64,000 následovaný rychlým návratem
+### BULLISH SCÉNÁŘ
+- Spouštěč: Průraz nad 67,500 s rostoucím objemem
+- Primární cíl: 69,200-69,800
+- Sekundární cíl: 71,500-72,000
+- Konfirmace: Uzavření denní svíčky nad 67,800
 
-## Obchodní příležitosti
+### BEARISH SCÉNÁŘ
+- Spouštěč: Ztráta supportu 64,500 a close pod touto úrovní
+- Primární cíl: 62,800-63,300
+- Sekundární cíl: 59,200-59,800
+- Konfirmace: Uzavření denní svíčky pod 64,200
 
-1. **Dlouhodobé**: Akumulace v zóně $63,200-$64,500 s cílem na ATH ($73,800)
-2. **Střednědobé**: Long nad $64,800 (průraz klesajícího klínu) s cílem $67,000
-3. **Krátkodobé**: 
-   - Long: Vstup $64,300, SL $63,900, cíle $65,400 a $66,800
-   - Short: Pouze pod $63,700 s prudkým nárůstem objemu
-   
-Čas analýzy: 2024-03-16 15:30 UTC
+### NEUTRÁLNÍ SCÉNÁŘ
+- Pokračování konsolidace v rozmezí 64,500-67,500
+- Očekávané testování obou krajních úrovní
+- Klíčové pro sledování: vývoj objemu na extrémech rozsahu
+
+## DŮLEŽITÉ OBLASTI KE SLEDOVÁNÍ
+
+- Denní pivot point: 65,850
+- Klíčové swingové body:
+  - Swing low: 63,800 (16.2. a 22.2.)
+  - Swing high: 69,400 (2.3.)
+- Liquidity pool pod 63,500 (potenciální stop hunt area)
+- Liquidity pool nad 70,000 (potenciální stop hunt area)
+
+Čas analýzy: 2024-02-26 15:30 UTC
 ```
 
 ### Intraday analýza
@@ -196,8 +238,8 @@ Toto rozdělení zajišťuje lepší testovatelnost a udržovatelnost kódu.
 
 - **Struktura trhu**: Cena se nachází v krátkodobém rostoucím trendu s vytvořením vyšších low/high
 - **Klíčové úrovně**:
-  - Support: $64,800-$65,000 (bývalá resistance, nyní support)
-  - Resistance: $66,400-$66,600 (významná zóna odmítnutí)
+  - Support: 64,800-65,000 (bývalá resistance, nyní support)
+  - Resistance: 66,400-66,600 (významná zóna odmítnutí)
 - **Objemový profil**: Rostoucí objem při pohybu vzhůru, svědčí o síle trendu
 
 ## INTRADAY PŘÍLEŽITOSTI (30m)
@@ -229,13 +271,7 @@ Toto rozdělení zajišťuje lepší testovatelnost a udržovatelnost kódu.
    - Take Profit: $66,200
    - Platnost: 4 hodiny
 
-3. **Reversal Short (pouze pokud selže průraz)**
-   - Vstup: Pod $65,400 po odmítnutí na $66,200
-   - Stop Loss: $65,750
-   - Take Profit: $64,900
-   - Platnost: 8 hodin
-
-Čas analýzy: 2024-03-16 14:30 UTC
+Čas analýzy: 2024-02-26 14:30 UTC
 ```
 
 ## Licence

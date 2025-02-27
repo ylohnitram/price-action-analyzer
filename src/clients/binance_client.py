@@ -213,9 +213,7 @@ class BinanceClient:
         timeframes = {
             "1w": 52,     # Weekly data - 1 rok
             "1d": 90,     # Daily data - 3 měsíce
-            "4h": 30,     # 4-hodinová data - 1 měsíc
-            "30m": 7,     # 30-minutová data - 1 týden
-            "5m": 3       # 5-minutová data - 3 dny
+            "4h": 30      # 4-hodinová data - 1 měsíc
         }
         
         results = {}
