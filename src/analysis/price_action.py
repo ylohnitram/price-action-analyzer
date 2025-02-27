@@ -85,6 +85,107 @@ class PriceActionAnalyzer:
 
         return patterns
 
+    def generate_intraday_analysis(self, symbol, dataframes):
+        """
+        Generuje analýzu zaměřenou na intraday obchodování.
+    
+        Args:
+            symbol (str): Obchodní symbol
+            dataframes (dict): Slovník s DataFrame pro různé časové rámce
+    
+        Returns:
+            tuple: (analýza, support_zóny, resistance_zóny)
+        """
+        patterns_by_tf = {}
+        for tf, df in dataframes.items():
+            patterns_by_tf[tf] = self.detect_patterns(df)
+
+        timeframe_data = []
+        all_timeframes = ["4h", "30m", "5m"]
+    
+        for tf in all_timeframes:
+            if tf in dataframes:
+                df = dataframes[tf]
+                num_candles = 5 if tf in ['4h'] else (10 if tf == '30m' else 15)
+        
+                tf_data = f"## Časový rámec: {tf}\n"
+                tf_data += f"Rozsah dat: {df.index[0]} až {df.index[-1]}\n"
+                tf_data += f"Počet svíček: {len(df)}\n"
+                tf_data += f"Posledních {num_candles} svíček:\n"
+                tf_data += f"{df[['open','high','low','close','volume']].tail(num_candles).to_markdown()}\n\n"
+        
+                patterns = patterns_by_tf[tf]
+                if patterns:
+                    tf_data += f"Poslední patterny:\n"
+                    for pattern in patterns[-8:]:  # Zobrazíme více patternů pro intraday analýzu
+                        tf_data += f"- {pattern[0]} na úrovni {pattern[2]:.2f}-{pattern[3]:.2f} ({pattern[1]})\n"
+            
+                timeframe_data.append(tf_data)
+
+        # Získáme aktuální cenu z posledního dataframe
+        latest_price = None
+        if '30m' in dataframes:
+            latest_price = dataframes['30m']['close'].iloc[-1]
+        elif '5m' in dataframes:
+            latest_price = dataframes['5m']['close'].iloc[-1]
+        elif '4h' in dataframes:
+            latest_price = dataframes['4h']['close'].iloc[-1]
+
+        prompt = f"""Jste senior intraday trader specializující se na price action analýzu se zaměřením na intradenní obchodování. Analyzujte data s důrazem na krátkodobé příležitosti.
+
+Symbol: {symbol}
+Aktuální cena: {latest_price:.2f}
+# DATA PODLE ČASOVÝCH RÁMCŮ
+{''.join(timeframe_data)}
+
+## 1. 📊 KRÁTKODOBÝ TREND A KONTEXT (4h)
+- Popište aktuální strukturu trhu (vyšší high/low, nižší high/low)
+- Klíčové úrovně podpory a rezistence (přesně definované jako rozsah cen, např. 93400-93500)
+- Objemový profil (kde se koncentruje nejvíce objemu)
+- Pozice v rámci vyššího trendu
+
+## 2. 🔍 INTRADAY PŘÍLEŽITOSTI (30m)
+- Aktuální situace v 30-minutovém timeframe
+- Klíčové patterny a významné cenové akce
+- Potenciální objemové divergence
+- Býčí/medvědí bias
+
+## 3. 🔎 SCALPING SETUPS (5m)
+- Specifické price action patterny (např. pin bar, engulfing, inside bar)
+- Order Blocks a FVG zóny
+- Cenové mezery (gaps)
+
+## 4. 💡 KONKRÉTNÍ OBCHODNÍ PŘÍLEŽITOSTI
+- Přesné vstupní úrovně s popisem typu vstupu (breakout/pullback)
+- Stop loss úrovně
+- Take profit úrovně (alespoň 2 pro postupné vybírání zisku)
+- Časová platnost setupu
+
+DŮLEŽITÉ:
+- KONKRÉTNÍ informace, žádný vágní text
+- Přehledné a stručné odrážky
+- NEVKLÁDEJTE sekce, pro které nemáte data
+- NEZAHRNUJTE závěrečné shrnutí ani varování na konci analýzy"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=2500
+            )
+            analysis = response.choices[0].message.content
+    
+            # Extrahování zón supportů a resistancí
+            support_zones = self.extract_zones_from_analysis(analysis, "support")
+            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
+    
+            # Pro intraday nepotřebujeme scénáře, ale používáme vždy podpory a resistence
+            return analysis, support_zones, resistance_zones
+    
+        except Exception as e:
+            raise Exception(f"Chyba při generování intraday analýzy: {str(e)}")
+
     def generate_multi_timeframe_analysis(self, symbol, dataframes):
         """
         Generuje multi-timeframe analýzu na základě dat z různých časových rámců.
