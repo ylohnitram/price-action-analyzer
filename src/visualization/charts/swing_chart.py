@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import mplfinance as mpf
 import matplotlib.dates as mdates
 from matplotlib.lines import Line2D
+import pandas as pd
+import numpy as np
 
 from src.visualization.charts.base_chart import BaseChart
 from src.visualization.components.zones import draw_support_zones, draw_resistance_zones
@@ -31,11 +33,12 @@ class SwingChart(BaseChart):
         """
         # Nastavení výchozích dnů pro zobrazení pokud není specifikováno
         if timeframe == '1d':
-            days_to_show = min(days_to_show, 60)  # Pro denní data maximálně 60 dní
+            # Pro denní data omezíme počet dní na rozumnou hodnotu
+            days_to_show = min(days_to_show, 30)  # Pro denní data maximálně 30 dní
         elif timeframe == '1w':
             days_to_show = min(days_to_show, 180)  # Pro týdenní data maximálně 180 dní
         elif timeframe == '4h':
-            days_to_show = min(days_to_show, 30)  # Pro 4h data maximálně 30 dní
+            days_to_show = min(days_to_show, 15)  # Pro 4h data maximálně 15 dní
         
         # Volání konstruktoru předka
         super().__init__(df, symbol, timeframe, days_to_show=days_to_show, hours_to_show=None)
@@ -68,6 +71,24 @@ class SwingChart(BaseChart):
             logger.info(f"Svíčkový graf dat: {len(self.plot_data)} svíček od {self.plot_data.index[0]} do {self.plot_data.index[-1]}")
             logger.info(f"První svíčka: Open={self.plot_data['Open'].iloc[0]}, High={self.plot_data['High'].iloc[0]}, Low={self.plot_data['Low'].iloc[0]}, Close={self.plot_data['Close'].iloc[0]}")
             logger.info(f"Poslední svíčka: Open={self.plot_data['Open'].iloc[-1]}, High={self.plot_data['High'].iloc[-1]}, Low={self.plot_data['Low'].iloc[-1]}, Close={self.plot_data['Close'].iloc[-1]}")
+            
+            # Omezení dat pro lepší zobrazení
+            if self.timeframe == '1d' and len(self.plot_data) > 30:
+                logger.info(f"Omezuji počet svíček pro denní graf na max 30 (aktuálně {len(self.plot_data)})")
+                self.plot_data = self.plot_data.tail(30).copy()
+            
+            # Pro swing grafy s denními daty ořežeme počet svíček, aby se zobrazovaly lépe
+            if self.timeframe == '1d' and len(self.plot_data) > 20:
+                # Volíme každý X-tý den pro zlepšení výkonu
+                step = len(self.plot_data) // 20 + 1
+                if step > 1:
+                    logger.info(f"Používám krok {step} pro zobrazení denních dat (z {len(self.plot_data)} svíček)")
+                    # Zachováme první a poslední svíčku a vybereme X-tý prvek
+                    indices = [0] + list(range(step - 1, len(self.plot_data) - 1, step)) + [len(self.plot_data) - 1]
+                    indices = sorted(set(indices))  # Odstranění duplicit
+                    reduced_data = self.plot_data.iloc[indices].copy()
+                    logger.info(f"Redukováno na {len(reduced_data)} svíček")
+                    self.plot_data = reduced_data
             
             # Vytvoření marketcolors pro mplfinance
             mc = mpf.make_marketcolors(
@@ -103,10 +124,18 @@ class SwingChart(BaseChart):
             # Formátování x-osy pro lepší zobrazení dat
             if self.timeframe == '1w':
                 self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-                self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0, interval=2))  # Každé druhé pondělí
+                if len(self.plot_data) > 10:
+                    interval = max(1, len(self.plot_data) // 5)
+                    self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0, interval=interval))
+                else:
+                    self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
             elif self.timeframe == '1d':
                 self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-                self.ax1.xaxis.set_major_locator(mdates.DayLocator(interval=10))  # Každý desátý den
+                if len(self.plot_data) > 10:
+                    interval = max(1, len(self.plot_data) // 5)
+                    self.ax1.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
+                else:
+                    self.ax1.xaxis.set_major_locator(mdates.DayLocator())
             else:
                 self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
                 self.ax1.xaxis.set_major_locator(mdates.HourLocator(interval=24))  # Každých 24 hodin
@@ -122,6 +151,10 @@ class SwingChart(BaseChart):
                 self.plot_data['Low'].min() - y_padding,
                 self.plot_data['High'].max() + y_padding
             )
+            
+            # Odstranění grid lines pro redukci warning messages
+            self.ax1.grid(False)
+            self.ax2.grid(False)
             
             logger.info("Svíčkový graf úspěšně vykreslen")
             
