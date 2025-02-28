@@ -85,13 +85,17 @@ class SwingChart(BaseChart):
         # Formátování x-osy pro lepší zobrazení dat
         if self.timeframe == '1w':
             self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-            self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))  # Každé pondělí
+            self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0, interval=2))  # Každé druhé pondělí
         elif self.timeframe == '1d':
             self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-            self.ax1.xaxis.set_major_locator(mdates.DayLocator(interval=5))  # Každý 5. den
+            self.ax1.xaxis.set_major_locator(mdates.DayLocator(interval=10))  # Každý desátý den
         else:
             self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-            self.ax1.xaxis.set_major_locator(mdates.HourLocator(interval=12))  # Každých 12 hodin
+            self.ax1.xaxis.set_major_locator(mdates.HourLocator(interval=24))  # Každých 24 hodin
+        
+        # Omezení počtu značek na osách
+        self.ax1.xaxis.set_tick_params(labelrotation=25)
+        self.ax1.yaxis.set_major_locator(plt.MaxNLocator(10))  # Maximálně 10 značek na ose Y
         
     def add_support_zones(self, zones):
         """
