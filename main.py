@@ -32,10 +32,8 @@ def parse_arguments():
     parser.add_argument('-d', '--days', type=int, default=5,
                         help='Počet dní historie (pouze pro single-timeframe analýzu)')
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--complete', action='store_true',
-                        help='Použít kompletní analýzu (všechny timeframy)')
-    group.add_argument('--multi', action='store_true',
-                        help='Alias pro --complete (zpětná kompatibilita)')
+    group.add_argument('--swing', action='store_true',
+                        help='Použít swing analýzu (všechny timeframy)')
     group.add_argument('--intraday', action='store_true',
                         help='Použít intraday analýzu (pouze 4h, 30m, 5m)')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -47,9 +45,9 @@ def parse_arguments():
     
     return parser.parse_args()
 
-def run_complete_analysis(symbol, no_chart=False, chart_days=5):
+def run_swing_analysis(symbol, no_chart=False, chart_days=5):
     """
-    Spustí kompletní analýzu pro všechny časové rámce.
+    Spustí swing analýzu pro všechny časové rámce.
     
     Args:
         symbol (str): Obchodní symbol
@@ -62,7 +60,7 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=5):
     # Kontrola proměnných prostředí
     env_vars = get_required_env_vars()
     
-    logger.info(f"Spouštím kompletní analýzu pro {symbol}")
+    logger.info(f"Spouštím swing analýzu pro {symbol}")
     
     # Inicializace klientů
     binance_client = BinanceClient()
@@ -75,7 +73,7 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=5):
     
     try:
         # Stažení multi-timeframe dat
-        logger.info("Stahuji kompletní data z Binance")
+        logger.info("Stahuji data pro swing analýzu z Binance")
         multi_tf_data = binance_client.fetch_multi_timeframe_data(symbol)
         
         if not multi_tf_data:
@@ -94,13 +92,13 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=5):
             logger.info(f"{tf} data: {len(df)} svíček od {df.index[0]} do {df.index[-1]}")
         
         # Generování analýzy
-        logger.info("Generuji kompletní AI analýzu")
+        logger.info("Generuji swing AI analýzu")
         analysis, support_zones, resistance_zones, scenarios = analyzer.generate_multi_timeframe_analysis(symbol, dataframes)
         
         # Přidáme nadpis k analýze
-        analysis = f"# Kompletní Price Action Analýza {symbol}\n\n{analysis}"
+        analysis = f"# Swing Price Action Analýza {symbol}\n\n{analysis}"
         
-        # Generování grafu - kompletní analýza používá daily timeframe pro graf
+        # Generování grafu - swing analýza používá daily timeframe pro graf
         chart_path = None
         chart_timeframe = '1d'
         
@@ -122,7 +120,8 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=5):
                 days_to_show=chart_days,
                 timeframe=chart_timeframe,
                 scenarios=scenarios,
-                analysis_text=analysis  # Předání textu analýzy pro lepší extrakci zón
+                analysis_text=analysis,
+                analysis_type="swing"  # Změna z "complete" na "swing"
             )
             logger.info(f"Graf vygenerován: {chart_path}")
         
@@ -138,11 +137,11 @@ def run_complete_analysis(symbol, no_chart=False, chart_days=5):
             filename = save_data_to_csv(df, symbol, tf)
             logger.info(f"Data {tf} uložena do: {filename}")
         
-        logger.info("Kompletní analýza úspěšně dokončena")
+        logger.info("Swing analýza úspěšně dokončena")
         return True
         
     except Exception as e:
-        logger.error(f"Chyba během kompletní analýzy: {str(e)}")
+        logger.error(f"Chyba během swing analýzy: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
         return False
@@ -211,7 +210,8 @@ def run_analysis(symbol, interval, days, no_chart=False, chart_days=5):
                 symbol,
                 days_to_show=chart_days,
                 timeframe=interval,  # Předáváme informaci o timeframe
-                analysis_text=analysis  # Předání textu analýzy pro lepší extrakci zón
+                analysis_text=analysis,
+                analysis_type="simple"  # Přidání parametru pro typ analýzy
             )
             logger.info(f"Graf vygenerován: {chart_path}")
         
@@ -337,7 +337,8 @@ def run_intraday_analysis(symbol, no_chart=False, chart_days=5):
                     symbol,
                     hours_to_show=hours_to_show,
                     timeframe=chart_tf,
-                    analysis_text=analysis  # Předání textu analýzy pro lepší extrakci zón
+                    analysis_text=analysis,
+                    analysis_type="intraday"  # Přidáno pro specifikaci typu analýzy
                 )
                 logger.info(f"Graf vygenerován: {chart_path}")
         
@@ -373,9 +374,9 @@ def main():
     
     # Spuštění analýzy
     try:
-        if args.complete or args.multi:  # Podpora obou variant
-            logger.info("Spouštím kompletní analýzu")
-            success = run_complete_analysis(args.symbol, args.no_chart, args.chart_days)
+        if args.swing:  # Změněno z complete/multi na swing
+            logger.info("Spouštím swing analýzu")
+            success = run_swing_analysis(args.symbol, args.no_chart, args.chart_days)
         elif args.intraday:
             logger.info("Spouštím intraday analýzu")
             success = run_intraday_analysis(args.symbol, args.no_chart, args.chart_days)
