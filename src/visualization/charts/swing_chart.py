@@ -33,12 +33,11 @@ class SwingChart(BaseChart):
         """
         # Nastavení výchozích dnů pro zobrazení pokud není specifikováno
         if timeframe == '1d':
-            # Pro denní data omezíme počet dní na rozumnou hodnotu
-            days_to_show = min(days_to_show, 30)  # Pro denní data maximálně 30 dní
+            days_to_show = min(days_to_show, 60)  # Pro denní data maximálně 60 dní
         elif timeframe == '1w':
             days_to_show = min(days_to_show, 180)  # Pro týdenní data maximálně 180 dní
         elif timeframe == '4h':
-            days_to_show = min(days_to_show, 15)  # Pro 4h data maximálně 15 dní
+            days_to_show = min(days_to_show, 30)  # Pro 4h data maximálně 30 dní
         
         # Volání konstruktoru předka
         super().__init__(df, symbol, timeframe, days_to_show=days_to_show, hours_to_show=None)
@@ -77,19 +76,6 @@ class SwingChart(BaseChart):
                 logger.info(f"Omezuji počet svíček pro denní graf na max 30 (aktuálně {len(self.plot_data)})")
                 self.plot_data = self.plot_data.tail(30).copy()
             
-            # Pro swing grafy s denními daty ořežeme počet svíček, aby se zobrazovaly lépe
-            if self.timeframe == '1d' and len(self.plot_data) > 20:
-                # Volíme každý X-tý den pro zlepšení výkonu
-                step = len(self.plot_data) // 20 + 1
-                if step > 1:
-                    logger.info(f"Používám krok {step} pro zobrazení denních dat (z {len(self.plot_data)} svíček)")
-                    # Zachováme první a poslední svíčku a vybereme X-tý prvek
-                    indices = [0] + list(range(step - 1, len(self.plot_data) - 1, step)) + [len(self.plot_data) - 1]
-                    indices = sorted(set(indices))  # Odstranění duplicit
-                    reduced_data = self.plot_data.iloc[indices].copy()
-                    logger.info(f"Redukováno na {len(reduced_data)} svíček")
-                    self.plot_data = reduced_data
-            
             # Vytvoření marketcolors pro mplfinance
             mc = mpf.make_marketcolors(
                 up=candle_colors['up'],
@@ -109,53 +95,40 @@ class SwingChart(BaseChart):
                 facecolor='white'
             )
             
-            # Vykreslení svíček
+            # Vykreslení svíček bez použití vlastních os - necháme to na mplfinance
             mpf.plot(
                 self.plot_data, 
                 ax=self.ax1, 
                 volume=self.ax2, 
                 type='candle', 
                 style=style,
-                show_nontrading=False,
-                datetime_format='%Y-%m-%d',
-                xrotation=25
+                show_nontrading=False
             )
-    
-            # Kompletní vypnutí automatického generování značek
-            # Nastavení vlastních značek na ose X - max 10 značek
-            num_ticks = min(10, len(self.plot_data))
-            if num_ticks > 1:
-                indices = np.linspace(0, len(self.plot_data) - 1, num_ticks).astype(int)
-                tick_locations = mdates.date2num([self.plot_data.index[i] for i in indices])
-                self.ax1.set_xticks(tick_locations)
-                self.ax1.set_xticklabels([self.plot_data.index[i].strftime('%Y-%m-%d') for i in indices], rotation=25)
-    
-            # Nastavení vlastních značek na ose Y - max 10 značek
-            y_min = self.plot_data['Low'].min()
-            y_max = self.plot_data['High'].max()
-            y_range = y_max - y_min
-            y_padding = y_range * 0.1
-            y_min -= y_padding
-            y_max += y_padding
-    
-            y_ticks = np.linspace(y_min, y_max, 10)
-            self.ax1.set_yticks(y_ticks)
-            self.ax1.set_yticklabels([f"{y:.0f}" for y in y_ticks])
-    
-            # Nastavení limitů osy Y
-            self.ax1.set_ylim(y_min, y_max)
-    
-            # Odstranění všech os z volume grafu a nastavení pevného počtu značek
-            self.ax2.set_xticks([])
-            v_max = self.plot_data['Volume'].max() * 1.1
-            self.ax2.set_yticks([0, v_max / 2, v_max])
-            self.ax2.set_yticklabels(['0', f"{v_max/2:.0f}", f"{v_max:.0f}"])
-            self.ax2.set_ylim(0, v_max)
-    
-            # Vypnutí všech mřížek
+            
+            # Formátování osy X pro lepší čitelnost
+            if self.timeframe == '1w':
+                locator = mdates.WeekdayLocator(byweekday=0, interval=2)
+                formatter = mdates.DateFormatter('%Y-%m-%d')
+            elif self.timeframe == '1d':
+                interval = max(1, len(self.plot_data) // 10)
+                locator = mdates.DayLocator(interval=interval)
+                formatter = mdates.DateFormatter('%Y-%m-%d')
+            else:
+                interval = max(1, len(self.plot_data) // 10)
+                locator = mdates.HourLocator(interval=interval*6)
+                formatter = mdates.DateFormatter('%m-%d %H:%M')
+            
+            self.ax1.xaxis.set_major_locator(locator)
+            self.ax1.xaxis.set_major_formatter(formatter)
+            self.ax1.xaxis.set_tick_params(rotation=25)
+            
+            # Omezení počtu značek na ose Y
+            self.ax1.yaxis.set_major_locator(plt.MaxNLocator(10))
+            
+            # Vypnout grid
             self.ax1.grid(False)
             self.ax2.grid(False)
-
+            
             logger.info("Svíčkový graf úspěšně vykreslen")
             
         except Exception as e:
