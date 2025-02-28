@@ -1,7 +1,8 @@
+#!/usr/bin/env python3
+
 import os
 import logging
 from datetime import datetime, timedelta
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 class BaseChart:
     """Základní třída pro všechny typy grafů."""
     
-    def __init__(self, df, symbol, timeframe=None, days_to_show=2, hours_to_show=None):
+    def __init__(self, df, symbol, timeframe=None, days_to_show=5, hours_to_show=None):
         """
         Inicializace základního grafu.
         
@@ -35,6 +36,9 @@ class BaseChart:
         # Nastavení podle timeframe
         self.tf_config = get_timeframe_config(timeframe)
         
+        # Získání barevného schématu
+        self.colors = get_color_scheme()
+        
         # Připravení dat pro zobrazení
         self.prepare_data()
         
@@ -48,9 +52,37 @@ class BaseChart:
             self.df.index = pd.to_datetime(self.df.index)
             
         self.df.sort_index(inplace=True)
+        
+        # Standardizace názvů sloupců
+        column_map = {
+            'open': 'Open', 'high': 'High', 'low': 'Low', 
+            'close': 'Close', 'volume': 'Volume'
+        }
+        
+        df_copy = self.df.copy()
+        
+        for old_col, new_col in column_map.items():
+            if old_col in df_copy.columns and new_col not in df_copy.columns:
+                df_copy[new_col] = df_copy[old_col]
+        
+        # Kontrola, zda máme všechny potřebné sloupce
+        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        for col in required_columns:
+            if col not in df_copy.columns:
+                logger.error(f"Chybí sloupec {col} v dataframe")
+                if 'Open' not in df_copy.columns and 'Close' in df_copy.columns:
+                    df_copy['Open'] = df_copy['Close']
+                if 'High' not in df_copy.columns and 'Close' in df_copy.columns:
+                    df_copy['High'] = df_copy['Close'] * 1.001  # Mírně vyšší než Close
+                if 'Low' not in df_copy.columns and 'Close' in df_copy.columns:
+                    df_copy['Low'] = df_copy['Close'] * 0.999   # Mírně nižší než Close
+                if 'Close' not in df_copy.columns and 'Open' in df_copy.columns:
+                    df_copy['Close'] = df_copy['Open']
+                if 'Volume' not in df_copy.columns:
+                    df_copy['Volume'] = 0
             
         # Limitace dat podle časového rozsahu
-        end_date = self.df.index.max()
+        end_date = df_copy.index.max()
         
         if self.hours_to_show:
             start_date = end_date - timedelta(hours=self.hours_to_show)
@@ -58,13 +90,13 @@ class BaseChart:
             days_to_use = min(self.days_to_show, self.tf_config.get('max_days', 90))
             start_date = end_date - timedelta(days=days_to_use)
             
-        self.plot_data = self.df[self.df.index >= start_date].copy()
+        self.plot_data = df_copy[df_copy.index >= start_date].copy()
         
         # Kontrola dostatku dat
         min_candles = self.tf_config.get('min_candles', 10)
         if len(self.plot_data) < min_candles:
             logger.warning(f"Not enough data ({len(self.plot_data)} candles) for {self.timeframe}. Using all available data.")
-            self.plot_data = self.df.copy()
+            self.plot_data = df_copy.copy()
             
     def init_figure(self):
         """Inicializace figury a os."""
@@ -73,7 +105,7 @@ class BaseChart:
         height_ratios = self.tf_config.get('height_ratios', [4, 1])
         
         self.fig = plt.figure(figsize=figsize, dpi=100)
-        self.gs = self.fig.add_gridspec(2, 1, height_ratios=height_ratios, hspace=0.05)
+        self.gs = self.fig.add_gridspec(2, 1, height_ratios=height_ratios, hspace=0.3)  # Větší mezera
         self.ax1 = self.fig.add_subplot(self.gs[0, 0])  # Hlavní graf
         self.ax2 = self.fig.add_subplot(self.gs[1, 0], sharex=self.ax1)  # Volume
         
@@ -88,11 +120,15 @@ class BaseChart:
             
         self.ax1.set_title(title, fontsize=14, fontweight='bold')
         
+        # Nastavení popisků os
+        self.ax1.set_ylabel('Price', fontsize=12)
+        self.ax2.set_ylabel('Volume', fontsize=12)
+        
         # Přidání informace o generování
         plt.figtext(
             0.01, 0.01,
             f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            fontsize=7,
+            fontsize=8,
             bbox=dict(facecolor='white', alpha=0.8)
         )
     
@@ -141,16 +177,14 @@ class BaseChart:
             charts_dir = "charts"
             os.makedirs(charts_dir, exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = os.path.join(charts_dir, f"{self.symbol}_{timestamp}.png")
+            filename = os.path.join(charts_dir, f"{self.symbol}_{self.timeframe}_{timestamp}.png")
         
         try:
-            # Doladění rozložení
-            plt.tight_layout(pad=1.0)
-            
             # Uložení grafu
             plt.savefig(filename, dpi=150, bbox_inches='tight')
             plt.close(self.fig)
             
+            logger.info(f"Graf úspěšně uložen: {filename}")
             return filename
             
         except Exception as e:
