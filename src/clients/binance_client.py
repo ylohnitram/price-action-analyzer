@@ -199,7 +199,7 @@ class BinanceClient:
 
     def fetch_multi_timeframe_data(self, symbol):
         """
-        Stáhne OHLCV data pro specifické časové rámce dle zadání.
+        Stáhne OHLCV data pro timeframy používané ve swing analýze.
         
         Args:
             symbol (str): Obchodní symbol (např. 'BTCUSDT')

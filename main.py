@@ -121,7 +121,7 @@ def run_swing_analysis(symbol, no_chart=False, chart_days=5):
                 timeframe=chart_timeframe,
                 scenarios=scenarios,
                 analysis_text=analysis,
-                analysis_type="swing"  # Změna z "complete" na "swing"
+                analysis_type="swing"
             )
             logger.info(f"Graf vygenerován: {chart_path}")
         
@@ -374,7 +374,7 @@ def main():
     
     # Spuštění analýzy
     try:
-        if args.swing:  # Změněno z complete/multi na swing
+        if args.swing:
             logger.info("Spouštím swing analýzu")
             success = run_swing_analysis(args.symbol, args.no_chart, args.chart_days)
         elif args.intraday:

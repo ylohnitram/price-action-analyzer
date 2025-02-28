@@ -189,7 +189,7 @@ DŮLEŽITÉ:
     def generate_multi_timeframe_analysis(self, symbol, dataframes):
         """
         Generuje multi-timeframe analýzu na základě dat z různých časových rámců.
-        Tato verze je upravena pro nezahrnování konkrétních vstupů a zaměření na zóny.
+        Tato verze je určena pro swing analýzu se zaměřením na středně až dlouhodobé obchodování.
     
         Args:
             symbol (str): Obchodní symbol
@@ -294,7 +294,7 @@ DŮLEŽITÉ:
             return analysis, support_zones, resistance_zones, scenarios
         
         except Exception as e:
-            raise Exception(f"Chyba při generování multi-timeframe analýzy: {str(e)}")
+            raise Exception(f"Chyba při generování swing analýzy: {str(e)}")
 
     def extract_scenarios_from_analysis(self, analysis, current_price):
         """

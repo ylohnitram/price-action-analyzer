@@ -61,7 +61,7 @@ Automatizovaný nástroj pro komplexní analýzu price action dat z Binance pomo
 
 #### Swing analýza (všechny časové rámce)
 ```bash
-python main.py -s BTCUSDT --complete
+python main.py -s BTCUSDT --swing
 ```
 
 #### Intraday analýza (pouze 4h, 30m, 5m)
@@ -76,7 +76,7 @@ python main.py -s BTCUSDT -i 30m -d 7
 
 Parametry:
 - `-s, --symbol`: Trading pár (např. BTCUSDT, ETHUSDT)
-- `--complete`: Použít swing analýzu (stahuje data pro všechny časové rámce)
+- `--swing`: Použít swing analýzu (stahuje data pro všechny časové rámce)
 - `--intraday`: Použít intraday analýzu (stahuje data pouze pro 4h, 30m, 5m)
 - `-i, --interval`: Časový interval pro single-timeframe analýzu (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w)
 - `-d, --days`: Počet dní historie pro single-timeframe analýzu
@@ -100,7 +100,7 @@ Parametry:
    - Přejděte na záložku "Actions"
    - Vyberte workflow "Price Action Analysis"
    - Klikněte na "Run workflow"
-   - Vyberte typ analýzy (complete, intraday, single) a zadejte další požadované parametry
+   - Vyberte typ analýzy (swing, intraday, single) a zadejte další požadované parametry
 
 ## Struktura projektu
 

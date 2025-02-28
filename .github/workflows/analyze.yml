@@ -2,7 +2,7 @@ name: Price Action Analysis
 
 on:
   schedule:
-    # Kompletní analýza jednou denně ráno v 7:30 UTC (pracovní dny)
+    # Swing analýza jednou denně ráno v 7:30 UTC (pracovní dny)
     - cron: '30 7 * * 1-5'
     
     # Intraday analýza každé 2 hodiny od 9:30 do 21:30 UTC (pracovní dny) 
@@ -17,10 +17,10 @@ on:
       analysis_type:
         description: 'Typ analýzy'
         required: true
-        default: 'complete'
+        default: 'swing'
         type: choice
         options:
-          - complete
+          - swing
           - intraday
           - single
       interval:
@@ -94,7 +94,7 @@ jobs:
           HOUR=$(date +%H)
           if [[ $GITHUB_EVENT_NAME == 'schedule' ]]; then
             if [[ $HOUR == "07" ]]; then
-              echo "type=complete" >> $GITHUB_OUTPUT
+              echo "type=swing" >> $GITHUB_OUTPUT
             else
               echo "type=intraday" >> $GITHUB_OUTPUT
             fi
@@ -102,11 +102,11 @@ jobs:
             echo "type=${{ github.event.inputs.analysis_type }}" >> $GITHUB_OUTPUT
           fi
       
-      - name: Spuštění kompletní analýzy
-        if: steps.analysis-type.outputs.type == 'complete'
+      - name: Spuštění swing analýzy
+        if: steps.analysis-type.outputs.type == 'swing'
         run: |
-          # Kompletní analýza pro BTC
-          python main.py -s BTCUSDT --complete
+          # Swing analýza pro BTC
+          python main.py -s BTCUSDT --swing
           # sleep 60 # sleep pred analyzou dalsiho paru
           
       - name: Spuštění intraday analýzy
