@@ -1,3 +1,7 @@
+import matplotlib
+# Nastavení neinteraktivního backend před importem pyplot
+matplotlib.use('Agg')
+
 import numpy as np
 import logging
 from matplotlib.patches import Rectangle

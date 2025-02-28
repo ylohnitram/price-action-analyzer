@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+import matplotlib
+# Nastavení neinteraktivního backend před importem pyplot
+matplotlib.use('Agg')
+
 import logging
 import matplotlib.pyplot as plt
 import mplfinance as mpf

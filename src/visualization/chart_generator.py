@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+import matplotlib
+# Nastavení neinteraktivního backend před importem pyplot
+matplotlib.use('Agg')
+
 import logging
 import re
 from datetime import datetime
