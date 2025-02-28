@@ -51,51 +51,85 @@ class SwingChart(BaseChart):
         # Definice barev pro svíčky z konfigurace
         candle_colors = self.colors['candle_colors']
         
-        # Vytvoření marketcolors pro mplfinance
-        mc = mpf.make_marketcolors(
-            up=candle_colors['up'],
-            down=candle_colors['down'],
-            edge={'up': candle_colors['edge_up'], 'down': candle_colors['edge_down']},
-            wick={'up': candle_colors['wick_up'], 'down': candle_colors['wick_down']},
-            volume={'up': candle_colors['volume_up'], 'down': candle_colors['volume_down']}
-        )
+        # Kontrola, zda máme dostatek dat
+        if len(self.plot_data) < 2:
+            logger.error(f"Nedostatek dat pro vykreslení svíčkového grafu: {len(self.plot_data)} svíček")
+            return
         
-        # Definice stylu grafu
-        style = mpf.make_mpf_style(
-            base_mpf_style='yahoo',
-            marketcolors=mc,
-            gridstyle='-',
-            gridcolor='#e6e6e6',
-            gridaxis='both',
-            facecolor='white'
-        )
-        
-        # Vykreslení svíček
-        mpf.plot(
-            self.plot_data, 
-            ax=self.ax1, 
-            volume=self.ax2, 
-            type='candle', 
-            style=style,
-            show_nontrading=False,
-            datetime_format='%Y-%m-%d',
-            xrotation=25
-        )
-        
-        # Formátování x-osy pro lepší zobrazení dat
-        if self.timeframe == '1w':
-            self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-            self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0, interval=2))  # Každé druhé pondělí
-        elif self.timeframe == '1d':
-            self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-            self.ax1.xaxis.set_major_locator(mdates.DayLocator(interval=10))  # Každý desátý den
-        else:
-            self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-            self.ax1.xaxis.set_major_locator(mdates.HourLocator(interval=24))  # Každých 24 hodin
-        
-        # Omezení počtu značek na osách
-        self.ax1.xaxis.set_tick_params(labelrotation=25)
-        self.ax1.yaxis.set_major_locator(plt.MaxNLocator(10))  # Maximálně 10 značek na ose Y
+        try:
+            # Kontrola, že dataframe má správnou strukturu
+            required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+            if not all(col in self.plot_data.columns for col in required_columns):
+                missing_cols = [col for col in required_columns if col not in self.plot_data.columns]
+                logger.error(f"Chybí sloupce v dataframe: {missing_cols}")
+                return
+            
+            # Kompletní info o datech pro ladění
+            logger.info(f"Svíčkový graf dat: {len(self.plot_data)} svíček od {self.plot_data.index[0]} do {self.plot_data.index[-1]}")
+            logger.info(f"První svíčka: Open={self.plot_data['Open'].iloc[0]}, High={self.plot_data['High'].iloc[0]}, Low={self.plot_data['Low'].iloc[0]}, Close={self.plot_data['Close'].iloc[0]}")
+            logger.info(f"Poslední svíčka: Open={self.plot_data['Open'].iloc[-1]}, High={self.plot_data['High'].iloc[-1]}, Low={self.plot_data['Low'].iloc[-1]}, Close={self.plot_data['Close'].iloc[-1]}")
+            
+            # Vytvoření marketcolors pro mplfinance
+            mc = mpf.make_marketcolors(
+                up=candle_colors['up'],
+                down=candle_colors['down'],
+                edge={'up': candle_colors['edge_up'], 'down': candle_colors['edge_down']},
+                wick={'up': candle_colors['wick_up'], 'down': candle_colors['wick_down']},
+                volume={'up': candle_colors['volume_up'], 'down': candle_colors['volume_down']}
+            )
+            
+            # Definice stylu grafu
+            style = mpf.make_mpf_style(
+                base_mpf_style='yahoo',
+                marketcolors=mc,
+                gridstyle='-',
+                gridcolor='#e6e6e6',
+                gridaxis='both',
+                facecolor='white'
+            )
+            
+            # Vykreslení svíček
+            mpf.plot(
+                self.plot_data, 
+                ax=self.ax1, 
+                volume=self.ax2, 
+                type='candle', 
+                style=style,
+                show_nontrading=False,
+                datetime_format='%Y-%m-%d',
+                xrotation=25
+            )
+            
+            # Formátování x-osy pro lepší zobrazení dat
+            if self.timeframe == '1w':
+                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+                self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0, interval=2))  # Každé druhé pondělí
+            elif self.timeframe == '1d':
+                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+                self.ax1.xaxis.set_major_locator(mdates.DayLocator(interval=10))  # Každý desátý den
+            else:
+                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+                self.ax1.xaxis.set_major_locator(mdates.HourLocator(interval=24))  # Každých 24 hodin
+            
+            # Omezení počtu značek na osách
+            self.ax1.xaxis.set_tick_params(labelrotation=25)
+            self.ax1.yaxis.set_major_locator(plt.MaxNLocator(10))  # Maximálně 10 značek na ose Y
+            
+            # Nastavení limitů osy Y na základě aktuálních dat
+            y_range = self.plot_data['High'].max() - self.plot_data['Low'].min()
+            y_padding = y_range * 0.1  # 10% padding
+            self.ax1.set_ylim(
+                self.plot_data['Low'].min() - y_padding,
+                self.plot_data['High'].max() + y_padding
+            )
+            
+            logger.info("Svíčkový graf úspěšně vykreslen")
+            
+        except Exception as e:
+            logger.error(f"Chyba při vykreslování svíčkového grafu: {str(e)}")
+            # Logujeme detailní stack trace pro lepší diagnostiku
+            import traceback
+            logger.error(traceback.format_exc())
         
     def add_support_zones(self, zones):
         """
@@ -107,15 +141,23 @@ class SwingChart(BaseChart):
         if not zones:
             return
             
-        # Získání barevného schématu
-        zone_colors = self.colors['zone_colors']['support']
-        
-        # Vykreslení zón
-        support_zone_added = draw_support_zones(self.ax1, zones, self.plot_data.index[0], zone_colors)
-        
-        # Přidání do legendy
-        if support_zone_added:
-            self.legend_elements.append(Line2D([0], [0], color=zone_colors[0], lw=2, linestyle='--', label='Support Zone'))
+        try:
+            # Získání barevného schématu
+            zone_colors = self.colors['zone_colors']['support']
+            
+            # Vykreslení zón
+            support_zone_added = draw_support_zones(self.ax1, zones, self.plot_data.index[0], zone_colors)
+            
+            # Přidání do legendy
+            if support_zone_added:
+                self.legend_elements.append(Line2D([0], [0], color=zone_colors[0], lw=2, linestyle='--', label='Support Zone'))
+                
+            logger.info(f"Přidáno {len(zones)} supportních zón")
+            
+        except Exception as e:
+            logger.error(f"Chyba při přidávání supportních zón: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             
     def add_resistance_zones(self, zones):
         """
@@ -127,15 +169,23 @@ class SwingChart(BaseChart):
         if not zones:
             return
             
-        # Získání barevného schématu
-        zone_colors = self.colors['zone_colors']['resistance']
-        
-        # Vykreslení zón
-        resistance_zone_added = draw_resistance_zones(self.ax1, zones, self.plot_data.index[0], zone_colors)
-        
-        # Přidání do legendy
-        if resistance_zone_added:
-            self.legend_elements.append(Line2D([0], [0], color=zone_colors[0], lw=2, linestyle='--', label='Resistance Zone'))
+        try:
+            # Získání barevného schématu
+            zone_colors = self.colors['zone_colors']['resistance']
+            
+            # Vykreslení zón
+            resistance_zone_added = draw_resistance_zones(self.ax1, zones, self.plot_data.index[0], zone_colors)
+            
+            # Přidání do legendy
+            if resistance_zone_added:
+                self.legend_elements.append(Line2D([0], [0], color=zone_colors[0], lw=2, linestyle='--', label='Resistance Zone'))
+                
+            logger.info(f"Přidáno {len(zones)} rezistenčních zón")
+            
+        except Exception as e:
+            logger.error(f"Chyba při přidávání rezistenčních zón: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             
     def add_scenarios(self, scenarios):
         """
@@ -147,22 +197,30 @@ class SwingChart(BaseChart):
         if not scenarios:
             return
             
-        # Získání barevného schématu pro scénáře
-        scenario_colors = self.colors['scenario_colors']
-        
-        # Vykreslení scénářů s projekcí do budoucnosti
-        bullish_added, bearish_added = draw_scenarios(
-            self.ax1, 
-            scenarios, 
-            self.plot_data, 
-            self.timeframe
-        )
-        
-        # Přidání do legendy
-        if bullish_added:
-            self.legend_elements.append(Line2D([0], [0], color=scenario_colors['bullish'], lw=2.5, label='Bullish Scenario'))
-        if bearish_added:
-            self.legend_elements.append(Line2D([0], [0], color=scenario_colors['bearish'], lw=2.5, label='Bearish Scenario'))
+        try:
+            # Získání barevného schématu pro scénáře
+            scenario_colors = self.colors['scenario_colors']
+            
+            # Vykreslení scénářů s projekcí do budoucnosti
+            bullish_added, bearish_added = draw_scenarios(
+                self.ax1, 
+                scenarios, 
+                self.plot_data, 
+                self.timeframe
+            )
+            
+            # Přidání do legendy
+            if bullish_added:
+                self.legend_elements.append(Line2D([0], [0], color=scenario_colors['bullish'], lw=2.5, label='Bullish Scenario'))
+            if bearish_added:
+                self.legend_elements.append(Line2D([0], [0], color=scenario_colors['bearish'], lw=2.5, label='Bearish Scenario'))
+                
+            logger.info(f"Přidáno {len(scenarios)} scénářů")
+            
+        except Exception as e:
+            logger.error(f"Chyba při přidávání scénářů: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             
     def render(self, filename=None):
         """
@@ -174,15 +232,22 @@ class SwingChart(BaseChart):
         Returns:
             str: Cesta k vygenerovanému souboru nebo None v případě chyby
         """
-        # Přidání legendy pokud máme nějaké elementy
-        if self.legend_elements:
-            self.ax1.legend(
-                handles=self.legend_elements,
-                loc='upper left',
-                fontsize=10,
-                framealpha=0.8,
-                ncol=min(len(self.legend_elements), 3)
-            )
-        
-        # Volání render metody ze základní třídy
-        return super().render(filename)
+        try:
+            # Přidání legendy pokud máme nějaké elementy
+            if self.legend_elements:
+                self.ax1.legend(
+                    handles=self.legend_elements,
+                    loc='upper left',
+                    fontsize=10,
+                    framealpha=0.8,
+                    ncol=min(len(self.legend_elements), 3)
+                )
+            
+            # Volání render metody ze základní třídy
+            return super().render(filename)
+            
+        except Exception as e:
+            logger.error(f"Chyba při renderování grafu: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
