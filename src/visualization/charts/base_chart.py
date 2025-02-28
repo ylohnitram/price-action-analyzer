@@ -70,15 +70,11 @@ class BaseChart:
             
             df_copy = self.df.copy()
             
-            # Převod všech sloupců na lowercase pro jednotné mapování
-            lowercase_columns = {col.lower(): col for col in df_copy.columns}
-            
+            # Zachování původních názvů sloupců
             for old_col, new_col in column_map.items():
-                # Pokud máme původní sloupec v nižším formátu a nemáme cílový sloupec
-                if old_col in lowercase_columns and new_col not in df_copy.columns:
-                    original_col = lowercase_columns[old_col]
-                    df_copy[new_col] = df_copy[original_col]
-                    logger.info(f"Mapování sloupce {original_col} na {new_col}")
+                if old_col in df_copy.columns and new_col not in df_copy.columns:
+                    df_copy[new_col] = df_copy[old_col]
+                    logger.info(f"Mapování sloupce {old_col} na {new_col}")
             
             # Kontrola, zda máme všechny potřebné sloupce
             required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
@@ -248,8 +244,9 @@ class BaseChart:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = os.path.join(charts_dir, f"{self.symbol}_{self.timeframe}_{timestamp}.png")
             
-            # Oříznutí okrajů grafu
-            plt.tight_layout()
+            # Nastavení správných formátů pro osy
+            # Skip tight_layout which can cause warnings with unsupported plot types
+            # plt.tight_layout()
             
             # Uložení grafu
             plt.savefig(filename, dpi=150, bbox_inches='tight')
