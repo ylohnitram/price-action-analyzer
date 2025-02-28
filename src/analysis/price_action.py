@@ -433,7 +433,9 @@ DŮLEŽITÉ:
                 r"[Ss]upport[ní]{0,2} zón[ay]?.*?([0-9,.-]+)-([0-9,.-]+)",
                 r"[Ss]upport.*?([0-9,.-]+)-([0-9,.-]+)",
                 r"[Bb]ullish OB.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Bb]ullish FVG.*?([0-9,.-]+)-([0-9,.-]+)"
+                r"[Bb]ullish FVG.*?([0-9,.-]+)-([0-9,.-]+)",
+                r"[Pp]odpora:?\s*([0-9,.-]+)-([0-9,.-]+)",
+                r"[Pp]odpora:?\s*(\d+\.?\d*)-(\d+\.?\d*)"
             ]
         else:  # resistance
             patterns = [
@@ -441,7 +443,9 @@ DŮLEŽITÉ:
                 r"[Rr]esisten[cč][en]í zón[ay]?.*?([0-9,.-]+)-([0-9,.-]+)",
                 r"[Rr]esisten[cč][en].*?([0-9,.-]+)-([0-9,.-]+)",
                 r"[Bb]earish OB.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Bb]earish FVG.*?([0-9,.-]+)-([0-9,.-]+)"
+                r"[Bb]earish FVG.*?([0-9,.-]+)-([0-9,.-]+)",
+                r"[Rr]ezistence:?\s*([0-9,.-]+)-([0-9,.-]+)",
+                r"[Rr]ezistence:?\s*(\d+\.?\d*)-(\d+\.?\d*)"
             ]
     
         for pattern in patterns:
