@@ -61,8 +61,8 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
         future_dates = [last_date + timedelta(days=i) for i in range(1, projection_days + 1)]
         future_x_dates = mdates.date2num(future_dates)
         
-        # Počet bodů pro projekci - omezení na maximálně 30 bodů
-        num_points = min(len(future_dates), 30)
+        # Počet bodů pro projekci - omezení na maximálně 15 bodů
+        num_points = min(len(future_dates), 15)
         
         for scenario_type, target_price in scenarios:
             if scenario_type == 'bullish' and target_price > current_price:

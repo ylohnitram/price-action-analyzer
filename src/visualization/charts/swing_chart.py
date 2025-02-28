@@ -120,42 +120,42 @@ class SwingChart(BaseChart):
                 datetime_format='%Y-%m-%d',
                 xrotation=25
             )
-            
-            # Formátování x-osy pro lepší zobrazení dat
-            if self.timeframe == '1w':
-                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-                if len(self.plot_data) > 10:
-                    interval = max(1, len(self.plot_data) // 5)
-                    self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0, interval=interval))
-                else:
-                    self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
-            elif self.timeframe == '1d':
-                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-                if len(self.plot_data) > 10:
-                    interval = max(1, len(self.plot_data) // 5)
-                    self.ax1.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
-                else:
-                    self.ax1.xaxis.set_major_locator(mdates.DayLocator())
-            else:
-                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-                self.ax1.xaxis.set_major_locator(mdates.HourLocator(interval=24))  # Každých 24 hodin
-            
-            # Omezení počtu značek na osách
-            self.ax1.xaxis.set_tick_params(labelrotation=25)
-            self.ax1.yaxis.set_major_locator(plt.MaxNLocator(10))  # Maximálně 10 značek na ose Y
-            
-            # Nastavení limitů osy Y na základě aktuálních dat
-            y_range = self.plot_data['High'].max() - self.plot_data['Low'].min()
-            y_padding = y_range * 0.1  # 10% padding
-            self.ax1.set_ylim(
-                self.plot_data['Low'].min() - y_padding,
-                self.plot_data['High'].max() + y_padding
-            )
-            
-            # Odstranění grid lines pro redukci warning messages
+    
+            # Kompletní vypnutí automatického generování značek
+            # Nastavení vlastních značek na ose X - max 10 značek
+            num_ticks = min(10, len(self.plot_data))
+            if num_ticks > 1:
+                indices = np.linspace(0, len(self.plot_data) - 1, num_ticks).astype(int)
+                tick_locations = mdates.date2num([self.plot_data.index[i] for i in indices])
+                self.ax1.set_xticks(tick_locations)
+                self.ax1.set_xticklabels([self.plot_data.index[i].strftime('%Y-%m-%d') for i in indices], rotation=25)
+    
+            # Nastavení vlastních značek na ose Y - max 10 značek
+            y_min = self.plot_data['Low'].min()
+            y_max = self.plot_data['High'].max()
+            y_range = y_max - y_min
+            y_padding = y_range * 0.1
+            y_min -= y_padding
+            y_max += y_padding
+    
+            y_ticks = np.linspace(y_min, y_max, 10)
+            self.ax1.set_yticks(y_ticks)
+            self.ax1.set_yticklabels([f"{y:.0f}" for y in y_ticks])
+    
+            # Nastavení limitů osy Y
+            self.ax1.set_ylim(y_min, y_max)
+    
+            # Odstranění všech os z volume grafu a nastavení pevného počtu značek
+            self.ax2.set_xticks([])
+            v_max = self.plot_data['Volume'].max() * 1.1
+            self.ax2.set_yticks([0, v_max / 2, v_max])
+            self.ax2.set_yticklabels(['0', f"{v_max/2:.0f}", f"{v_max:.0f}"])
+            self.ax2.set_ylim(0, v_max)
+    
+            # Vypnutí všech mřížek
             self.ax1.grid(False)
             self.ax2.grid(False)
-            
+
             logger.info("Svíčkový graf úspěšně vykreslen")
             
         except Exception as e:
