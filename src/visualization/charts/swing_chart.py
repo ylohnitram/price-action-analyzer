@@ -71,95 +71,145 @@ class SwingChart(BaseChart):
             logger.info(f"První svíčka: Open={self.plot_data['Open'].iloc[0]}, High={self.plot_data['High'].iloc[0]}, Low={self.plot_data['Low'].iloc[0]}, Close={self.plot_data['Close'].iloc[0]}")
             logger.info(f"Poslední svíčka: Open={self.plot_data['Open'].iloc[-1]}, High={self.plot_data['High'].iloc[-1]}, Low={self.plot_data['Low'].iloc[-1]}, Close={self.plot_data['Close'].iloc[-1]}")
             
-            # Omezení dat pro lepší zobrazení
-            if self.timeframe == '1d' and len(self.plot_data) > 30:
-                logger.info(f"Omezuji počet svíček pro denní graf na max 30 (aktuálně {len(self.plot_data)})")
-                self.plot_data = self.plot_data.tail(30).copy()
+            # Ruční vykreslení svíček pro lepší kontrolu nad rozložením
+            width = 0.7  # Šířka svíčky
+            width2 = 0.1  # Šířka knotu
             
-            # Vytvoření marketcolors pro mplfinance
-            mc = mpf.make_marketcolors(
-                up=candle_colors['up'],
-                down=candle_colors['down'],
-                edge={'up': candle_colors['edge_up'], 'down': candle_colors['edge_down']},
-                wick={'up': candle_colors['wick_up'], 'down': candle_colors['wick_down']},
-                volume={'up': candle_colors['volume_up'], 'down': candle_colors['volume_down']}
-            )
+            # Převod datového indexu na numerický pro vykreslení
+            x_values = np.arange(len(self.plot_data))
             
-            # Definice stylu grafu
-            style = mpf.make_mpf_style(
-                base_mpf_style='yahoo',
-                marketcolors=mc,
-                gridstyle='-',
-                gridcolor='#e6e6e6',
-                gridaxis='both',
-                facecolor='white'
-            )
+            # Rozdělení na stoupající a klesající svíčky
+            up = self.plot_data[self.plot_data['Close'] >= self.plot_data['Open']]
+            down = self.plot_data[self.plot_data['Close'] < self.plot_data['Open']]
             
-            # Nastavení fontů - menší písmo pro lepší kompatibilitu
-            plt.rcParams['font.size'] = 8
+            # Bezpečnější způsob získání indexů
+            up_indices = []
+            for idx in up.index:
+                try:
+                    up_indices.append(self.plot_data.index.get_loc(idx))
+                except:
+                    # Pokud nastane problém, zkusíme jiný způsob
+                    pos = list(self.plot_data.index).index(idx)
+                    up_indices.append(pos)
             
-            # Ořez dat na přesný počet obchodních dnů pro 1d timeframe
-            if self.timeframe == '1d':
-                # Určení počtu svíček pro zobrazení
-                num_candles = min(len(self.plot_data), 30)
-                self.plot_data = self.plot_data.tail(num_candles).copy()
+            down_indices = []
+            for idx in down.index:
+                try:
+                    down_indices.append(self.plot_data.index.get_loc(idx))
+                except:
+                    # Pokud nastane problém, zkusíme jiný způsob
+                    pos = list(self.plot_data.index).index(idx)
+                    down_indices.append(pos)
             
-            # Vykreslení svíček pomocí mplfinance
-            fig_ohlc = mpf.plot(
-                self.plot_data, 
-                type='candle', 
-                style=style,
-                show_nontrading=False,
-                returnfig=True  # Vrátit figuru místo zobrazení
-            )
+            # Vykreslení stoupajících svíček
+            if len(up_indices) > 0:
+                # Těla svíček
+                self.ax1.bar(
+                    up_indices, 
+                    up['Close'] - up['Open'], 
+                    width, 
+                    bottom=up['Open'], 
+                    color=candle_colors['up'], 
+                    zorder=3
+                )
+                # Horní knoty
+                self.ax1.bar(
+                    up_indices, 
+                    up['High'] - up['Close'], 
+                    width2, 
+                    bottom=up['Close'], 
+                    color=candle_colors['wick_up'], 
+                    zorder=3
+                )
+                # Dolní knoty
+                self.ax1.bar(
+                    up_indices, 
+                    up['Open'] - up['Low'], 
+                    width2, 
+                    bottom=up['Low'], 
+                    color=candle_colors['wick_up'], 
+                    zorder=3
+                )
+                
+                # Volume pro stoupající svíčky
+                self.ax2.bar(
+                    up_indices, 
+                    up['Volume'], 
+                    width, 
+                    color=candle_colors['volume_up']
+                )
+                
+            # Vykreslení klesajících svíček
+            if len(down_indices) > 0:
+                # Těla svíček
+                self.ax1.bar(
+                    down_indices, 
+                    down['Close'] - down['Open'], 
+                    width, 
+                    bottom=down['Open'], 
+                    color=candle_colors['down'], 
+                    zorder=3
+                )
+                # Horní knoty
+                self.ax1.bar(
+                    down_indices, 
+                    down['High'] - down['Open'], 
+                    width2, 
+                    bottom=down['Open'], 
+                    color=candle_colors['wick_down'], 
+                    zorder=3
+                )
+                # Dolní knoty
+                self.ax1.bar(
+                    down_indices, 
+                    down['Low'] - down['Close'], 
+                    width2, 
+                    bottom=down['Close'], 
+                    color=candle_colors['wick_down'], 
+                    zorder=3
+                )
+                
+                # Volume pro klesající svíčky
+                self.ax2.bar(
+                    down_indices, 
+                    down['Volume'], 
+                    width, 
+                    color=candle_colors['volume_down']
+                )
             
-            # Extrakce obrázku
-            ohlc_ax = fig_ohlc[1][0]  # Získat osu s OHLC daty
+            # Nastavení os
+            # Omezení počtu zobrazených ticků na ose X pro přehlednost
+            max_ticks = min(len(self.plot_data), 10)  # Maximálně 10 popisků na ose X
+            step = max(1, len(self.plot_data) // max_ticks)
             
-            # Zkopírování svíček do našeho grafu
-            for collection in ohlc_ax.collections:
-                self.ax1.add_collection(collection.copy())
+            # Nastavení ticků na ose X
+            tick_positions = x_values[::step]
+            tick_labels = [self.plot_data.index[i].strftime('%Y-%m-%d') for i in tick_positions]
             
-            for line in ohlc_ax.lines:
-                self.ax1.add_line(line)
+            self.ax1.set_xticks(tick_positions)
+            self.ax1.set_xticklabels(tick_labels, rotation=45, ha='right')
             
-            # Přenesení Y dat a limitů
-            y_min, y_max = ohlc_ax.get_ylim()
-            y_range = y_max - y_min
-            y_padding = y_range * 0.1  # Přidání 10% padding
-            self.ax1.set_ylim(y_min - y_padding, y_max + y_padding)
+            # Zajistit, že osa X má správný rozsah - ponecháme 20% místo vpravo pro scénáře
+            extra_space = len(self.plot_data) * 0.2
+            self.ax1.set_xlim(-0.5, len(self.plot_data) - 0.5 + extra_space)
             
-            # Odstranění původního grafu
-            plt.close(fig_ohlc[0])
+            # Stejné nastavení pro osu volume
+            self.ax2.set_xticks(tick_positions)
+            self.ax2.set_xticklabels(tick_labels, rotation=45, ha='right')
+            self.ax2.set_xlim(-0.5, len(self.plot_data) - 0.5 + extra_space)
             
-            # Nastavení vhodných formátovačů pro osy
-            if self.timeframe == '1w':
-                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-                self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0, interval=1))
-            elif self.timeframe == '1d':
-                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-                # Pro denní data nastavit minimální počet bodů na ose
-                self.ax1.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, len(self.plot_data) // 10)))
-            elif self.timeframe == '4h':
-                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-                self.ax1.xaxis.set_major_locator(mdates.HourLocator(interval=24))
+            # Přidání mřížky
+            self.ax1.grid(True, alpha=0.3)
+            self.ax2.grid(True, alpha=0.3)
             
-            # Natočení popisků a omezení počtu značek
-            self.ax1.tick_params(axis='x', rotation=45, labelsize=8)
-            self.ax1.tick_params(axis='y', labelsize=8)
-            
-            # Vypnutí mřížky
-            self.ax1.grid(False)
-            self.ax2.grid(False)
-            
-            logger.info("Svíčkový graf úspěšně vykreslen")
+            logger.info("Ruční vykreslení svíčkového grafu s objemy úspěšně dokončeno")
             
         except Exception as e:
             logger.error(f"Chyba při vykreslování svíčkového grafu: {str(e)}")
             # Logujeme detailní stack trace pro lepší diagnostiku
             import traceback
             logger.error(traceback.format_exc())
-        
+
     def add_support_zones(self, zones):
         """
         Přidá supportní zóny do grafu.
@@ -174,12 +224,50 @@ class SwingChart(BaseChart):
             # Získání barevného schématu
             zone_colors = self.colors['zone_colors']['support']
             
-            # Vykreslení zón
-            support_zone_added = draw_support_zones(self.ax1, zones, self.plot_data.index[0], zone_colors)
+            # Manuální vykreslení zón přes celou šířku grafu
+            xlim = self.ax1.get_xlim()
+            xmin, xmax = xlim
+            width = xmax - xmin
             
             # Přidání do legendy
-            if support_zone_added:
-                self.legend_elements.append(Line2D([0], [0], color=zone_colors[0], lw=2, linestyle='--', label='Support Zone'))
+            self.legend_elements.append(Line2D([0], [0], color=zone_colors[0], lw=2, linestyle='--', label='Support Zone'))
+            
+            # Vykreslení zón
+            for i, (zone_min, zone_max) in enumerate(zones):
+                color_idx = min(i, len(zone_colors) - 1)
+                color = zone_colors[color_idx]
+                
+                # Vytvoření obdélníku pro zónu
+                height = zone_max - zone_min
+                rect = plt.Rectangle(
+                    (xmin, zone_min),
+                    width,
+                    height,
+                    facecolor=color,
+                    alpha=0.2,
+                    edgecolor=color,
+                    linestyle='--',
+                    linewidth=1,
+                    zorder=1
+                )
+                self.ax1.add_patch(rect)
+                
+                # Přidání popisku
+                midpoint = (zone_min + zone_max) / 2
+                self.ax1.text(
+                    xmin + width * 0.02,
+                    midpoint,
+                    f"S{i+1}: {midpoint:.0f}",
+                    color='white',
+                    fontweight='bold',
+                    fontsize=9,
+                    bbox=dict(
+                        facecolor=color,
+                        alpha=0.7,
+                        boxstyle='round,pad=0.3'
+                    ),
+                    zorder=4
+                )
                 
             logger.info(f"Přidáno {len(zones)} supportních zón")
             
@@ -199,15 +287,53 @@ class SwingChart(BaseChart):
             return
             
         try:
-            # Získání barevného schématu
-            zone_colors = self.colors['zone_colors']['resistance']
+            # Explicitně definujeme červené barvy pro rezistenci
+            zone_colors = ['#B22222', '#CC0000', '#FF0000', '#FF3333']
             
-            # Vykreslení zón
-            resistance_zone_added = draw_resistance_zones(self.ax1, zones, self.plot_data.index[0], zone_colors)
+            # Manuální vykreslení zón přes celou šířku grafu
+            xlim = self.ax1.get_xlim()
+            xmin, xmax = xlim
+            width = xmax - xmin
             
             # Přidání do legendy
-            if resistance_zone_added:
-                self.legend_elements.append(Line2D([0], [0], color=zone_colors[0], lw=2, linestyle='--', label='Resistance Zone'))
+            self.legend_elements.append(Line2D([0], [0], color=zone_colors[0], lw=2, linestyle='--', label='Resistance Zone'))
+            
+            # Vykreslení zón
+            for i, (zone_min, zone_max) in enumerate(zones):
+                color_idx = min(i, len(zone_colors) - 1)
+                color = zone_colors[color_idx]
+                
+                # Vytvoření obdélníku pro zónu
+                height = zone_max - zone_min
+                rect = plt.Rectangle(
+                    (xmin, zone_min),
+                    width,
+                    height,
+                    facecolor=color,
+                    alpha=0.2,
+                    edgecolor=color,
+                    linestyle='--',
+                    linewidth=1,
+                    zorder=1
+                )
+                self.ax1.add_patch(rect)
+                
+                # Přidání popisku
+                midpoint = (zone_min + zone_max) / 2
+                self.ax1.text(
+                    xmin + width * 0.02,
+                    midpoint,
+                    f"R{i+1}: {midpoint:.0f}",
+                    color='white',
+                    fontweight='bold',
+                    fontsize=9,
+                    bbox=dict(
+                        facecolor=color,
+                        alpha=0.7,
+                        boxstyle='round,pad=0.3'
+                    ),
+                    zorder=4
+                )
                 
             logger.info(f"Přidáno {len(zones)} rezistenčních zón")
             
@@ -230,7 +356,7 @@ class SwingChart(BaseChart):
             # Získání barevného schématu pro scénáře
             scenario_colors = self.colors['scenario_colors']
             
-            # Vykreslení scénářů s projekcí do budoucnosti
+            # Vykreslení scénářů s projekcí do budoucnosti pomocí komponenty
             bullish_added, bearish_added = draw_scenarios(
                 self.ax1, 
                 scenarios, 
@@ -250,7 +376,7 @@ class SwingChart(BaseChart):
             logger.error(f"Chyba při přidávání scénářů: {str(e)}")
             import traceback
             logger.error(traceback.format_exc())
-            
+
     def render(self, filename=None):
         """
         Vykreslí graf a uloží do souboru.

@@ -33,98 +33,126 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
         # Zjištění aktuální ceny
         current_price = plot_data['Close'].iloc[-1]
         
-        # Převod dat na numerické hodnoty pro interpolaci
-        x_dates = mdates.date2num(plot_data.index.to_pydatetime())
-        last_date = plot_data.index[-1]
+        # Místo převodu na datum získáme přímo pozici v grafu
+        x_values = np.arange(len(plot_data))
+        last_x = x_values[-1]  # Poslední pozice na ose X
         
-        # Určení délky projekce podle timeframe a dostupných dat
+        # Určení délky projekce podle timeframe
         if timeframe == '1w':
-            projection_days = min(30, 7 * len(plot_data))  # Max 30 dní nebo 7 dní na svíčku
+            num_points = 8
         elif timeframe == '1d':
-            projection_days = min(15, 1 * len(plot_data))  # Max 15 dní nebo 1 den na svíčku
+            num_points = 10
         elif timeframe == '4h':
-            projection_days = min(7, 0.5 * len(plot_data))  # Max 7 dní nebo 0.5 dne na svíčku 
-        elif timeframe == '1h':
-            projection_days = min(3, 0.2 * len(plot_data))  # Max 3 dny nebo 0.2 dne na svíčku
+            num_points = 12
         else:
-            projection_days = min(2, 0.1 * len(plot_data))  # Max 2 dny nebo 0.1 dne na svíčku
+            num_points = 8
         
-        # Zaokrouhlení na celé dny
-        projection_days = max(1, int(projection_days))
-        
-        # Omezení délky projekce, aby se předešlo přílišnému množství bodů
-        projection_days = min(projection_days, 30)
-        
-        logger.info(f"Projekce scénářů: {projection_days} dní pro {timeframe} timeframe")
-        
-        # Vytvoření budoucích dat pro projekci
-        future_dates = [last_date + timedelta(days=i) for i in range(1, projection_days + 1)]
-        future_x_dates = mdates.date2num(future_dates)
-        
-        # Počet bodů pro projekci - omezení na maximálně 15 bodů
-        num_points = min(len(future_dates), 15)
+        # Vytvoření budoucích X hodnot pro projekci
+        future_x = np.linspace(last_x + 1, last_x + num_points, num_points)
         
         for scenario_type, target_price in scenarios:
             if scenario_type == 'bullish' and target_price > current_price:
-                # Bullish scénář s bouncy
-                bounces = generate_bounces_to_target(current_price, target_price, num_points, 'bullish')
+                # Výpočet y hodnot pro bullish scénář s mírnou fluktuací
+                price_diff = target_price - current_price
+                y_values = np.array([
+                    current_price,  # První bod - aktuální cena
+                    current_price + price_diff * 0.15,
+                    current_price + price_diff * 0.25 - price_diff * 0.05,
+                    current_price + price_diff * 0.4,
+                    current_price + price_diff * 0.55 - price_diff * 0.03,
+                    current_price + price_diff * 0.7,
+                    current_price + price_diff * 0.85,
+                    target_price    # Poslední bod - cílová cena
+                ])
                 
-                # Vygenerování všech bodů včetně aktuálních
-                y_points = np.append([current_price], bounces)
-                x_points = np.append([x_dates[-1]], future_x_dates[:num_points])
+                # Oříznutí nebo doplnění pole y_values, aby odpovídalo future_x
+                if len(y_values) > len(future_x):
+                    y_values = y_values[:len(future_x)]
+                elif len(y_values) < len(future_x):
+                    # Doplnění lineární interpolací
+                    step = (target_price - y_values[-1]) / (len(future_x) - len(y_values) + 1)
+                    extra_points = [y_values[-1] + step * (i+1) for i in range(len(future_x) - len(y_values))]
+                    y_values = np.append(y_values, extra_points)
                 
-                # Kontrola délky polí
-                min_len = min(len(x_points), len(y_points))
-                x_points = x_points[:min_len]
-                y_points = y_points[:min_len]
+                # Sestavení x souřadnic včetně poslední známé hodnoty
+                x_coords = np.concatenate(([last_x], future_x))
                 
-                # Vykreslení čáry
-                ax.plot(x_points, y_points, '-', color='green', linewidth=2.5)
+                # Přidání aktuální ceny k y_values
+                y_coords = np.concatenate(([current_price], y_values))
+                
+                # Kontrola, že oba vektory mají stejný rozměr
+                assert len(x_coords) == len(y_coords), f"Nesouhlasí počet bodů: x={len(x_coords)}, y={len(y_coords)}"
+                
+                # Vykreslení linie
+                ax.plot(x_coords, y_coords, '-', color='green', linewidth=2.5, zorder=5)
                 
                 # Přidání popisku cíle
                 ax.text(
-                    future_dates[min(num_points-1, len(future_dates)-1)], 
-                    target_price, 
-                    f"{target_price:.0f}", 
-                    color='white', 
-                    fontweight='bold', 
+                    future_x[-1],
+                    target_price,
+                    f"{target_price:.0f}",
+                    color='white',
+                    fontweight='bold',
                     fontsize=10,
-                    bbox=dict(facecolor='green', alpha=0.9, edgecolor='green')
+                    bbox=dict(facecolor='green', alpha=0.9, edgecolor='green', boxstyle='round,pad=0.3'),
+                    zorder=6
                 )
                 
                 bullish_added = True
                 
             elif scenario_type == 'bearish' and target_price < current_price:
-                # Bearish scénář s bouncy
-                bounces = generate_bounces_to_target(current_price, target_price, num_points, 'bearish')
+                # Výpočet y hodnot pro bearish scénář s mírnou fluktuací
+                price_diff = current_price - target_price
+                y_values = np.array([
+                    current_price,  # První bod - aktuální cena
+                    current_price - price_diff * 0.15,
+                    current_price - price_diff * 0.25 + price_diff * 0.05,
+                    current_price - price_diff * 0.4,
+                    current_price - price_diff * 0.55 + price_diff * 0.03,
+                    current_price - price_diff * 0.7,
+                    current_price - price_diff * 0.85,
+                    target_price    # Poslední bod - cílová cena
+                ])
                 
-                # Vygenerování všech bodů včetně aktuálních
-                y_points = np.append([current_price], bounces)
-                x_points = np.append([x_dates[-1]], future_x_dates[:num_points])
+                # Oříznutí nebo doplnění pole y_values, aby odpovídalo future_x
+                if len(y_values) > len(future_x):
+                    y_values = y_values[:len(future_x)]
+                elif len(y_values) < len(future_x):
+                    # Doplnění lineární interpolací
+                    step = (target_price - y_values[-1]) / (len(future_x) - len(y_values) + 1)
+                    extra_points = [y_values[-1] + step * (i+1) for i in range(len(future_x) - len(y_values))]
+                    y_values = np.append(y_values, extra_points)
                 
-                # Kontrola délky polí
-                min_len = min(len(x_points), len(y_points))
-                x_points = x_points[:min_len]
-                y_points = y_points[:min_len]
+                # Sestavení x souřadnic včetně poslední známé hodnoty
+                x_coords = np.concatenate(([last_x], future_x))
                 
-                # Vykreslení čáry
-                ax.plot(x_points, y_points, '-', color='red', linewidth=2.5)
+                # Přidání aktuální ceny k y_values
+                y_coords = np.concatenate(([current_price], y_values))
+                
+                # Kontrola, že oba vektory mají stejný rozměr
+                assert len(x_coords) == len(y_coords), f"Nesouhlasí počet bodů: x={len(x_coords)}, y={len(y_coords)}"
+                
+                # Vykreslení linie
+                ax.plot(x_coords, y_coords, '-', color='red', linewidth=2.5, zorder=5)
                 
                 # Přidání popisku cíle
                 ax.text(
-                    future_dates[min(num_points-1, len(future_dates)-1)], 
-                    target_price, 
-                    f"{target_price:.0f}", 
-                    color='white', 
-                    fontweight='bold', 
+                    future_x[-1],
+                    target_price,
+                    f"{target_price:.0f}",
+                    color='white',
+                    fontweight='bold',
                     fontsize=10,
-                    bbox=dict(facecolor='red', alpha=0.9, edgecolor='red')
+                    bbox=dict(facecolor='red', alpha=0.9, edgecolor='red', boxstyle='round,pad=0.3'),
+                    zorder=6
                 )
                 
                 bearish_added = True
     
     except Exception as e:
         logger.error(f"Chyba při vykreslování scénářů: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False, False
         
     return bullish_added, bearish_added
