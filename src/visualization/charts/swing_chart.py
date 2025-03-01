@@ -95,37 +95,60 @@ class SwingChart(BaseChart):
                 facecolor='white'
             )
             
-            # Vykreslení svíček bez použití vlastních os - necháme to na mplfinance
-            mpf.plot(
+            # Nastavení fontů - menší písmo pro lepší kompatibilitu
+            plt.rcParams['font.size'] = 8
+            
+            # Ořez dat na přesný počet obchodních dnů pro 1d timeframe
+            if self.timeframe == '1d':
+                # Určení počtu svíček pro zobrazení
+                num_candles = min(len(self.plot_data), 30)
+                self.plot_data = self.plot_data.tail(num_candles).copy()
+            
+            # Vykreslení svíček pomocí mplfinance
+            fig_ohlc = mpf.plot(
                 self.plot_data, 
-                ax=self.ax1, 
-                volume=self.ax2, 
                 type='candle', 
                 style=style,
-                show_nontrading=False
+                show_nontrading=False,
+                returnfig=True  # Vrátit figuru místo zobrazení
             )
             
-            # Formátování osy X pro lepší čitelnost
+            # Extrakce obrázku
+            ohlc_ax = fig_ohlc[1][0]  # Získat osu s OHLC daty
+            
+            # Zkopírování svíček do našeho grafu
+            for collection in ohlc_ax.collections:
+                self.ax1.add_collection(collection.copy())
+            
+            for line in ohlc_ax.lines:
+                self.ax1.add_line(line)
+            
+            # Přenesení Y dat a limitů
+            y_min, y_max = ohlc_ax.get_ylim()
+            y_range = y_max - y_min
+            y_padding = y_range * 0.1  # Přidání 10% padding
+            self.ax1.set_ylim(y_min - y_padding, y_max + y_padding)
+            
+            # Odstranění původního grafu
+            plt.close(fig_ohlc[0])
+            
+            # Nastavení vhodných formátovačů pro osy
             if self.timeframe == '1w':
-                locator = mdates.WeekdayLocator(byweekday=0, interval=2)
-                formatter = mdates.DateFormatter('%Y-%m-%d')
+                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+                self.ax1.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0, interval=1))
             elif self.timeframe == '1d':
-                interval = max(1, len(self.plot_data) // 10)
-                locator = mdates.DayLocator(interval=interval)
-                formatter = mdates.DateFormatter('%Y-%m-%d')
-            else:
-                interval = max(1, len(self.plot_data) // 10)
-                locator = mdates.HourLocator(interval=interval*6)
-                formatter = mdates.DateFormatter('%m-%d %H:%M')
+                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+                # Pro denní data nastavit minimální počet bodů na ose
+                self.ax1.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, len(self.plot_data) // 10)))
+            elif self.timeframe == '4h':
+                self.ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+                self.ax1.xaxis.set_major_locator(mdates.HourLocator(interval=24))
             
-            self.ax1.xaxis.set_major_locator(locator)
-            self.ax1.xaxis.set_major_formatter(formatter)
-            self.ax1.xaxis.set_tick_params(rotation=25)
+            # Natočení popisků a omezení počtu značek
+            self.ax1.tick_params(axis='x', rotation=45, labelsize=8)
+            self.ax1.tick_params(axis='y', labelsize=8)
             
-            # Omezení počtu značek na ose Y
-            self.ax1.yaxis.set_major_locator(plt.MaxNLocator(10))
-            
-            # Vypnout grid
+            # Vypnutí mřížky
             self.ax1.grid(False)
             self.ax2.grid(False)
             
