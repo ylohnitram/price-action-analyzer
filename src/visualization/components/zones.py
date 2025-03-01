@@ -112,30 +112,30 @@ def draw_support_zones(ax, zones, start_date, colors):
             zorder=4
         )
         
-        # NOVÉ: Přidání popisků pro horní a dolní hranici zóny
+        # NOVÉ: Přidání popisků pro horní a dolní hranici zóny NA PRAVÉ STRANĚ grafu
         # Popisek pro horní hranici
         ax.text(
-            xlim[0] + xrange * 0.25,  # 25% od levého okraje
+            xlim[1] + xrange * 0.005,  # Těsně za pravým okrajem grafu
             s_max,
             f"{s_max:.0f}",
             color=color,
             fontweight='bold',
             fontsize=8,
-            ha='center',
-            va='bottom',
+            ha='left',  # Zarovnání doleva od bodu
+            va='center',  # Vertikálně centrováno
             zorder=4
         )
         
         # Popisek pro dolní hranici
         ax.text(
-            xlim[0] + xrange * 0.25,  # 25% od levého okraje
+            xlim[1] + xrange * 0.005,  # Těsně za pravým okrajem grafu
             s_min,
             f"{s_min:.0f}",
             color=color,
             fontweight='bold',
             fontsize=8,
-            ha='center',
-            va='top',
+            ha='left',  # Zarovnání doleva od bodu
+            va='center',  # Vertikálně centrováno
             zorder=4
         )
         
@@ -248,30 +248,30 @@ def draw_resistance_zones(ax, zones, start_date, colors):
             zorder=4
         )
         
-        # NOVÉ: Přidání popisků pro horní a dolní hranici zóny
+        # NOVÉ: Přidání popisků pro horní a dolní hranici zóny NA PRAVÉ STRANĚ grafu
         # Popisek pro horní hranici
         ax.text(
-            xlim[0] + xrange * 0.25,  # 25% od levého okraje
+            xlim[1] + xrange * 0.005,  # Těsně za pravým okrajem grafu
             r_max,
             f"{r_max:.0f}",
             color=color,
             fontweight='bold',
             fontsize=8,
-            ha='center',
-            va='bottom',
+            ha='left',  # Zarovnání doleva od bodu
+            va='center',  # Vertikálně centrováno
             zorder=4
         )
         
         # Popisek pro dolní hranici
         ax.text(
-            xlim[0] + xrange * 0.25,  # 25% od levého okraje
+            xlim[1] + xrange * 0.005,  # Těsně za pravým okrajem grafu
             r_min,
             f"{r_min:.0f}",
             color=color,
             fontweight='bold',
             fontsize=8,
-            ha='center',
-            va='top',
+            ha='left',  # Zarovnání doleva od bodu
+            va='center',  # Vertikálně centrováno
             zorder=4
         )
         
