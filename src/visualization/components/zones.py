@@ -95,7 +95,7 @@ def draw_support_zones(ax, zones, start_date, colors):
         )
         ax.add_patch(rect)
         
-        # Přidání popisku
+        # Přidání popisku do středu zóny
         mid_point = (s_min + s_max) / 2
         ax.text(
             xlim[0] + xrange * 0.02,  # 2% od levého okraje
@@ -109,6 +109,33 @@ def draw_support_zones(ax, zones, start_date, colors):
                 alpha=0.7,
                 boxstyle='round,pad=0.3'
             ),
+            zorder=4
+        )
+        
+        # NOVÉ: Přidání popisků pro horní a dolní hranici zóny
+        # Popisek pro horní hranici
+        ax.text(
+            xlim[0] + xrange * 0.25,  # 25% od levého okraje
+            s_max,
+            f"{s_max:.0f}",
+            color=color,
+            fontweight='bold',
+            fontsize=8,
+            ha='center',
+            va='bottom',
+            zorder=4
+        )
+        
+        # Popisek pro dolní hranici
+        ax.text(
+            xlim[0] + xrange * 0.25,  # 25% od levého okraje
+            s_min,
+            f"{s_min:.0f}",
+            color=color,
+            fontweight='bold',
+            fontsize=8,
+            ha='center',
+            va='top',
             zorder=4
         )
         
@@ -204,7 +231,7 @@ def draw_resistance_zones(ax, zones, start_date, colors):
         )
         ax.add_patch(rect)
         
-        # Přidání popisku
+        # Přidání popisku do středu zóny
         mid_point = (r_min + r_max) / 2
         ax.text(
             xlim[0] + xrange * 0.02,  # 2% od levého okraje
@@ -218,6 +245,33 @@ def draw_resistance_zones(ax, zones, start_date, colors):
                 alpha=0.7,
                 boxstyle='round,pad=0.3'
             ),
+            zorder=4
+        )
+        
+        # NOVÉ: Přidání popisků pro horní a dolní hranici zóny
+        # Popisek pro horní hranici
+        ax.text(
+            xlim[0] + xrange * 0.25,  # 25% od levého okraje
+            r_max,
+            f"{r_max:.0f}",
+            color=color,
+            fontweight='bold',
+            fontsize=8,
+            ha='center',
+            va='bottom',
+            zorder=4
+        )
+        
+        # Popisek pro dolní hranici
+        ax.text(
+            xlim[0] + xrange * 0.25,  # 25% od levého okraje
+            r_min,
+            f"{r_min:.0f}",
+            color=color,
+            fontweight='bold',
+            fontsize=8,
+            ha='center',
+            va='top',
             zorder=4
         )
         
