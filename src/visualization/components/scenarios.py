@@ -16,18 +16,19 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
         timeframe (str): Časový rámec dat
         
     Returns:
-        tuple: (bullish_added, bearish_added) - Indikátory, zda byly přidány scénáře
+        tuple: (bullish_added, bearish_added, neutral_added) - Indikátory, zda byly přidány scénáře
     """
     if not scenarios:
-        return False, False
+        return False, False, False
     
     # Kontrola, zda máme dostatek dat
     if plot_data is None or len(plot_data) == 0:
         logger.warning("Nedostatek dat pro vykreslení scénářů")
-        return False, False
+        return False, False, False
     
     bullish_added = False
     bearish_added = False
+    neutral_added = False
     
     try:
         # Zjištění aktuální ceny
@@ -50,8 +51,9 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
         # Vytvoření budoucích X hodnot pro projekci
         future_x = np.linspace(last_x + 1, last_x + num_points, num_points)
         
-        for scenario_type, target_price in scenarios:
-            if scenario_type == 'bullish' and target_price > current_price:
+        for scenario_type, target_info in scenarios:
+            if scenario_type == 'bullish' and isinstance(target_info, (int, float)) and target_info > current_price:
+                target_price = target_info
                 # Výpočet y hodnot pro bullish scénář s mírnou fluktuací
                 price_diff = target_price - current_price
                 y_values = np.array([
@@ -100,7 +102,8 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
                 
                 bullish_added = True
                 
-            elif scenario_type == 'bearish' and target_price < current_price:
+            elif scenario_type == 'bearish' and isinstance(target_info, (int, float)) and target_info < current_price:
+                target_price = target_info
                 # Výpočet y hodnot pro bearish scénář s mírnou fluktuací
                 price_diff = current_price - target_price
                 y_values = np.array([
@@ -148,14 +151,59 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
                 )
                 
                 bearish_added = True
+                
+            elif scenario_type == 'neutral' and isinstance(target_info, tuple) and len(target_info) == 2:
+                # Pro neutrální scénář - vykreslíme vodorovný pás
+                lower_bound, upper_bound = target_info
+                
+                # Kontrola, že hranice dávají smysl
+                if lower_bound < upper_bound:
+                    # Vykreslení horní a dolní hranice
+                    x_coords = np.concatenate(([last_x], future_x))
+                    
+                    # Horní hranice - vodorovná čára
+                    upper_y = np.full(len(x_coords), upper_bound)
+                    ax.plot(x_coords, upper_y, '--', color='blue', linewidth=1.5, zorder=5, alpha=0.7)
+                    
+                    # Dolní hranice - vodorovná čára
+                    lower_y = np.full(len(x_coords), lower_bound)
+                    ax.plot(x_coords, lower_y, '--', color='blue', linewidth=1.5, zorder=5, alpha=0.7)
+                    
+                    # Vyplnění oblasti mezi hranicemi
+                    ax.fill_between(x_coords, lower_y, upper_y, color='blue', alpha=0.1, zorder=4)
+                    
+                    # Přidání popisků
+                    ax.text(
+                        future_x[-1],
+                        upper_bound,
+                        f"{upper_bound:.0f}",
+                        color='black',
+                        fontweight='bold',
+                        fontsize=9,
+                        bbox=dict(facecolor='white', alpha=0.7, edgecolor='blue'),
+                        zorder=6
+                    )
+                    
+                    ax.text(
+                        future_x[-1],
+                        lower_bound,
+                        f"{lower_bound:.0f}",
+                        color='black',
+                        fontweight='bold',
+                        fontsize=9,
+                        bbox=dict(facecolor='white', alpha=0.7, edgecolor='blue'),
+                        zorder=6
+                    )
+                    
+                    neutral_added = True
+        
+        return bullish_added, bearish_added, neutral_added
     
     except Exception as e:
         logger.error(f"Chyba při vykreslování scénářů: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
-        return False, False
-        
-    return bullish_added, bearish_added
+        return False, False, False
 
 def generate_bounces_to_target(start_price, target_price, num_points, direction):
     """

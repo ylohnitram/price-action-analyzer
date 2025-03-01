@@ -26,10 +26,48 @@ class ChartGenerator:
         support_zones = []
         resistance_zones = []
         
-        # Vyhledávání support zón
+        # Vylepšený pattern pro podpory a rezistence, který zachytí různé formáty
+        patterns = [
+            # Formát "78258.5-80000"
+            r"(?:support|Support).*?(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)",
+            r"(?:resistance|Resistance|rezistence|Rezistence).*?(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)",
+            
+            # Speciální formát pro odrážky v Markdown
+            r"- .*?(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)(?=\n)",
+            
+            # Formát pro případ, kdy je zóna uvedena ve větě
+            r"[Ss]upport\D+(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)",
+            r"[Rr]esistance\D+(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)",
+            
+            # Formát pro hledání zón v sekci supportních nebo rezistenčních zón
+            r"Hlavní supportní zón[^:]*:[^\n]*\n(?:\s*-\s*(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)[^\n]*\n)+",
+            r"Hlavní resistenční zón[^:]*:[^\n]*\n(?:\s*-\s*(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)[^\n]*\n)+"
+        ]
+        
+        # Zvlášť provedeme hledání pro supporty a rezistence
+        # Hledat supportní zóny v celém textu
         support_pattern = r"[Ss]upport.*?(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)"
         support_matches = re.findall(support_pattern, analysis_text, re.IGNORECASE | re.DOTALL)
         
+        # Hledání v sekci supportních zón
+        support_section_pattern = r"Hlavní supportní zón[^:]*:([^#]+)"
+        support_section = re.search(support_section_pattern, analysis_text, re.IGNORECASE | re.DOTALL)
+        if support_section:
+            section_text = support_section.group(1)
+            # Hledání všech odrážek v sekci
+            bullet_points = re.findall(r"\s*-\s*([^\n]+)", section_text)
+            for point in bullet_points:
+                # Hledání číselného rozsahu v každé odrážce
+                range_match = re.search(r"(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)", point)
+                if range_match:
+                    try:
+                        s_min = float(range_match.group(1).replace(',', '.'))
+                        s_max = float(range_match.group(2).replace(',', '.'))
+                        support_zones.append((s_min, s_max))
+                    except (ValueError, IndexError):
+                        pass
+        
+        # Přidání nalezených zón do seznamu supportů
         for match in support_matches:
             try:
                 s_min = float(match[0].replace(',', '.'))
@@ -38,21 +76,29 @@ class ChartGenerator:
             except (ValueError, IndexError):
                 pass
                 
-        # Alternativní pattern pro supportní zóny
-        alt_support_pattern = r"(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\s*\([Ss]upport"
-        alt_support_matches = re.findall(alt_support_pattern, analysis_text)
-        for match in alt_support_matches:
-            try:
-                s_min = float(match[0].replace(',', '.'))
-                s_max = float(match[1].replace(',', '.'))
-                support_zones.append((s_min, s_max))
-            except (ValueError, IndexError):
-                pass
-        
-        # Vyhledávání resistance zón
-        resistance_pattern = r"[Rr]esist.*?(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)"
+        # Hledat resistenční zóny v celém textu
+        resistance_pattern = r"[Rr]esisten[cč].*?(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)"
         resistance_matches = re.findall(resistance_pattern, analysis_text, re.IGNORECASE | re.DOTALL)
         
+        # Hledání v sekci resistenčních zón
+        resistance_section_pattern = r"Hlavní resistenční zón[^:]*:([^#]+)"
+        resistance_section = re.search(resistance_section_pattern, analysis_text, re.IGNORECASE | re.DOTALL)
+        if resistance_section:
+            section_text = resistance_section.group(1)
+            # Hledání všech odrážek v sekci
+            bullet_points = re.findall(r"\s*-\s*([^\n]+)", section_text)
+            for point in bullet_points:
+                # Hledání číselného rozsahu v každé odrážce
+                range_match = re.search(r"(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)", point)
+                if range_match:
+                    try:
+                        r_min = float(range_match.group(1).replace(',', '.'))
+                        r_max = float(range_match.group(2).replace(',', '.'))
+                        resistance_zones.append((r_min, r_max))
+                    except (ValueError, IndexError):
+                        pass
+        
+        # Přidání nalezených zón do seznamu resistencí
         for match in resistance_matches:
             try:
                 r_min = float(match[0].replace(',', '.'))
@@ -60,29 +106,28 @@ class ChartGenerator:
                 resistance_zones.append((r_min, r_max))
             except (ValueError, IndexError):
                 pass
-                
-        # Alternativní pattern pro resistenční zóny
-        alt_resistance_pattern = r"(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\s*\([Rr]esist"
-        alt_resistance_matches = re.findall(alt_resistance_pattern, analysis_text)
-        for match in alt_resistance_matches:
-            try:
-                r_min = float(match[0].replace(',', '.'))
-                r_max = float(match[1].replace(',', '.'))
-                resistance_zones.append((r_min, r_max))
-            except (ValueError, IndexError):
-                pass
         
-        # Deduplikace a další zpracování pokud potřeba...
+        # Deduplikace a setřídění zón
         support_zones = list(set(support_zones))
         resistance_zones = list(set(resistance_zones))
         
+        # Seřazení zón podle ceny
+        support_zones.sort(key=lambda x: x[0])
+        resistance_zones.sort(key=lambda x: x[0])
+        
+        # Omezení počtu zón pro lepší přehlednost (max 8)
+        if len(support_zones) > 8:
+            support_zones = support_zones[:8]
+        if len(resistance_zones) > 8:
+            resistance_zones = resistance_zones[:8]
+            
         return support_zones, resistance_zones
     
     def extract_scenarios_from_text(self, analysis_text, current_price):
         """Extrahuje scénáře pro vizualizaci z textu analýzy."""
         scenarios = []
         
-        # Hledat sekci "MOŽNÉ SCÉNÁŘE DALŠÍHO VÝVOJE" nebo podobnou
+        # Hledat sekci "MOŽNÉ SCÉNÁŘE DALŠÍHO VÝVOJE"
         scenario_section = re.search(r'(MOŽNÉ SCÉNÁŘE|SCÉNÁŘE|SCENÁŘE|VÝVOJE)(.*?)(##|\Z)', 
                                     analysis_text, re.DOTALL | re.IGNORECASE)
         
@@ -108,8 +153,22 @@ class ChartGenerator:
                         scenarios.append(('bearish', bearish_target))
                 except (ValueError, IndexError):
                     pass
+            
+            # Hledání neutrálního scénáře (pokud má explicitní cenový rozsah)
+            neutral_section = re.search(r'[Nn]eutrální.*?(\d{4,6}(?:[.,]\d+)?)[^\d]*(\d{4,6}(?:[.,]\d+)?)', scenario_text, re.DOTALL)
+            if neutral_section:
+                try:
+                    lower_bound = float(neutral_section.group(1).replace(',', '.'))
+                    upper_bound = float(neutral_section.group(2).replace(',', '.'))
+                    
+                    # Pro neutrální scénář vytvoříme pouze hranice pokud dávají smysl
+                    if lower_bound < upper_bound:
+                        scenarios.append(('neutral', (lower_bound, upper_bound)))
+                except (ValueError, IndexError):
+                    pass
         
-        # Další hledání scénářů v celém textu pokud nebyly nalezeny...
+        # Logování nalezených scénářů pro ladění
+        logger.info(f"Nalezené scénáře: {scenarios}")
         
         return scenarios
 
