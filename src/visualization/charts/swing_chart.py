@@ -193,7 +193,7 @@ class SwingChart(BaseChart):
             logger.error(f"Chyba při přidávání rezistenčních zón: {str(e)}")
             import traceback
             logger.error(traceback.format_exc())
-            
+    
     def add_scenarios(self, scenarios):
         """
         Přidá scénáře vývoje ceny do grafu.
@@ -202,9 +202,12 @@ class SwingChart(BaseChart):
             scenarios (list): Seznam scénářů k vizualizaci jako (typ, cena)
         """
         if not scenarios:
+            logger.warning("Nebyly předány žádné scénáře ke zpracování")
             return
             
         try:
+            logger.info(f"Přidávám {len(scenarios)} scénářů: {scenarios}")
+            
             # Vykreslení scénářů s projekcí do budoucnosti pomocí komponenty
             bullish_added, bearish_added, neutral_added = draw_scenarios(
                 self.ax1, 
@@ -216,10 +219,15 @@ class SwingChart(BaseChart):
             # Přidání do legendy
             if bullish_added:
                 self.legend_elements.append(Line2D([0], [0], color='green', lw=2.5, label='Bullish Scenario'))
+                logger.info("Bullish scénář přidán do legendy")
+                
             if bearish_added:
                 self.legend_elements.append(Line2D([0], [0], color='red', lw=2.5, label='Bearish Scenario'))
+                logger.info("Bearish scénář přidán do legendy")
+                
             if neutral_added:
                 self.legend_elements.append(Line2D([0], [0], color='blue', lw=1.5, linestyle='--', label='Neutral Range'))
+                logger.info("Neutrální scénář přidán do legendy")
                 
             logger.info(f"Přidáno {len(scenarios)} scénářů")
             
@@ -227,7 +235,7 @@ class SwingChart(BaseChart):
             logger.error(f"Chyba při přidávání scénářů: {str(e)}")
             import traceback
             logger.error(traceback.format_exc())
-            
+
     def render(self, filename=None):
         """
         Vykreslí graf a uloží do souboru.

@@ -19,6 +19,7 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
         tuple: (bullish_added, bearish_added, neutral_added) - Indikátory, zda byly přidány scénáře
     """
     if not scenarios:
+        logger.warning("Nebyly předány žádné scénáře k vykreslení")
         return False, False, False
     
     # Kontrola, zda máme dostatek dat
@@ -33,6 +34,7 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
     try:
         # Zjištění aktuální ceny
         current_price = plot_data['Close'].iloc[-1]
+        logger.info(f"Aktuální cena pro scénáře: {current_price}")
         
         # Místo převodu na datum získáme přímo pozici v grafu
         x_values = np.arange(len(plot_data))
@@ -51,9 +53,16 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
         # Vytvoření budoucích X hodnot pro projekci
         future_x = np.linspace(last_x + 1, last_x + num_points, num_points)
         
+        # Logování scénářů pro diagnostiku
+        for i, (scenario_type, target_info) in enumerate(scenarios):
+            logger.info(f"Zpracovávám scénář {i+1}: {scenario_type} - {target_info}")
+        
         for scenario_type, target_info in scenarios:
+            # BULLISH SCÉNÁŘ
             if scenario_type == 'bullish' and isinstance(target_info, (int, float)) and target_info > current_price:
                 target_price = target_info
+                logger.info(f"Vykreslování bullish scénáře s cílem {target_price}")
+                
                 # Výpočet y hodnot pro bullish scénář s mírnou fluktuací
                 price_diff = target_price - current_price
                 y_values = np.array([
@@ -83,7 +92,16 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
                 y_coords = np.concatenate(([current_price], y_values))
                 
                 # Kontrola, že oba vektory mají stejný rozměr
-                assert len(x_coords) == len(y_coords), f"Nesouhlasí počet bodů: x={len(x_coords)}, y={len(y_coords)}"
+                if len(x_coords) != len(y_coords):
+                    logger.error(f"Nesouhlasí počet bodů: x={len(x_coords)}, y={len(y_coords)}")
+                    logger.error(f"x_coords: {x_coords}")
+                    logger.error(f"y_coords: {y_coords}")
+                    logger.info(f"Upravuji délky polí pro bullish scénář")
+                    
+                    # Oříznutí na kratší z obou polí
+                    min_len = min(len(x_coords), len(y_coords))
+                    x_coords = x_coords[:min_len]
+                    y_coords = y_coords[:min_len]
                 
                 # Vykreslení linie
                 ax.plot(x_coords, y_coords, '-', color='green', linewidth=2.5, zorder=5)
@@ -101,9 +119,13 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
                 )
                 
                 bullish_added = True
-                
+                logger.info(f"Bullish scénář úspěšně přidán")
+            
+            # BEARISH SCÉNÁŘ
             elif scenario_type == 'bearish' and isinstance(target_info, (int, float)) and target_info < current_price:
                 target_price = target_info
+                logger.info(f"Vykreslování bearish scénáře s cílem {target_price}")
+                
                 # Výpočet y hodnot pro bearish scénář s mírnou fluktuací
                 price_diff = current_price - target_price
                 y_values = np.array([
@@ -133,7 +155,16 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
                 y_coords = np.concatenate(([current_price], y_values))
                 
                 # Kontrola, že oba vektory mají stejný rozměr
-                assert len(x_coords) == len(y_coords), f"Nesouhlasí počet bodů: x={len(x_coords)}, y={len(y_coords)}"
+                if len(x_coords) != len(y_coords):
+                    logger.error(f"Nesouhlasí počet bodů: x={len(x_coords)}, y={len(y_coords)}")
+                    logger.error(f"x_coords: {x_coords}")
+                    logger.error(f"y_coords: {y_coords}")
+                    logger.info(f"Upravuji délky polí pro bearish scénář")
+                    
+                    # Oříznutí na kratší z obou polí
+                    min_len = min(len(x_coords), len(y_coords))
+                    x_coords = x_coords[:min_len]
+                    y_coords = y_coords[:min_len]
                 
                 # Vykreslení linie
                 ax.plot(x_coords, y_coords, '-', color='red', linewidth=2.5, zorder=5)
@@ -151,10 +182,13 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
                 )
                 
                 bearish_added = True
-                
+                logger.info(f"Bearish scénář úspěšně přidán")
+            
+            # NEUTRÁLNÍ SCÉNÁŘ
             elif scenario_type == 'neutral' and isinstance(target_info, tuple) and len(target_info) == 2:
                 # Pro neutrální scénář - vykreslíme vodorovný pás
                 lower_bound, upper_bound = target_info
+                logger.info(f"Vykreslování neutrálního scénáře s rozsahem {lower_bound}-{upper_bound}")
                 
                 # Kontrola, že hranice dávají smysl
                 if lower_bound < upper_bound:
@@ -196,6 +230,11 @@ def draw_scenarios(ax, scenarios, plot_data, timeframe):
                     )
                     
                     neutral_added = True
+                    logger.info(f"Neutrální scénář úspěšně přidán")
+                else:
+                    logger.warning(f"Neutrální scénář má nesmyslný rozsah: {lower_bound}-{upper_bound}")
+            else:
+                logger.warning(f"Neznámý nebo nesprávný formát scénáře: {scenario_type} - {target_info}")
         
         return bullish_added, bearish_added, neutral_added
     
