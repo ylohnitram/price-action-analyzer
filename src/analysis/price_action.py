@@ -239,8 +239,8 @@ Aktuální cena: {latest_price:.2f}
 {''.join(timeframe_data)}
 
 ## 1. 📊 DLOUHODOBÝ TREND (1W/1D)
-- Hlavní supportní zóny (min. 4 významné zóny definované jako rozsah cen, např. 86000-86200)
-- Hlavní resistenční zóny (min. 4 významné zóny definované jako rozsah cen, např. 89400-89600)
+- Hlavní resistenční zóny (min. 4 významné zóny nad aktuální cenou, definované jako rozsah cen, např. 89400-89600)
+- Hlavní supportní zóny (min. 4 významné zóny pod aktuální cenou, definované jako rozsah cen, např. 86000-86200)
 - Fair Value Gaps (FVG) s přesnými úrovněmi cen (pokud existují)
 - Order Blocks (OB) s přesnými úrovněmi cen (pokud existují)
 - Fázová analýza trhu (akumulace/distribuce, trendové/nárazové pohyby)
@@ -268,6 +268,8 @@ Aktuální cena: {latest_price:.2f}
 - Nezahrnujte sekce, pro které nemáte dostatek dat - pokud nemáte pivot pointy, prostě je nevyjmenovávejte
 
 DŮLEŽITÉ:
+- Support MUSÍ být vždy pod aktuální cenou ({latest_price:.2f}), resistance vždy nad aktuální cenou
+- Všechny supportní a resistenční zóny musí být ve správném pořadí (resistance nad aktuální cenou, support pod ní)
 - NEZAHRNUJTE žádné závěrečné shrnutí ani varování na konci analýzy
 - NEPIŠTE fráze jako "Tato analýza poskytuje přehled" nebo podobné shrnující věty
 - NEVKLÁDEJTE sekce, pro které nemáte data - pokud něco nelze určit, sekci vynechte
@@ -416,16 +418,17 @@ DŮLEŽITÉ:
     def extract_zones_from_analysis(self, analysis, zone_type):
         """
         Extrahuje zóny supportů nebo resistancí z textu analýzy.
-        
+        Vybere pouze nejdůležitější zóny pro lepší přehlednost.
+    
         Args:
             analysis (str): Text analýzy
             zone_type (str): Typ zóny ('support' nebo 'resistance')
-        
+    
         Returns:
             list: Seznam zón ve formátu [(min1, max1), (min2, max2), ...]
         """
         zones = []
-    
+
         # Různé možné variace názvů v textu
         if zone_type.lower() == "support":
             patterns = [
@@ -447,7 +450,7 @@ DŮLEŽITÉ:
                 r"[Rr]ezistence:?\s*([0-9,.-]+)-([0-9,.-]+)",
                 r"[Rr]ezistence:?\s*(\d+\.?\d*)-(\d+\.?\d*)"
             ]
-    
+
         for pattern in patterns:
             matches = re.findall(pattern, analysis)
             for match in matches:
@@ -457,29 +460,61 @@ DŮLEŽITÉ:
                     zones.append((min_value, max_value))
                 except (ValueError, IndexError):
                     continue
-    
-        # Pokud nenajdeme zóny pomocí rozsahů, zkusíme hledat konkrétní hodnoty
-        if not zones:
+
+        # Získání sekcí analýzy pro prioritizaci zón
+        hlavni_zony_section = None
+        if zone_type.lower() == "support":
+            hlavni_section_pattern = r"Hlavní supportní zón[^:]*:(.*?)(?=\n\s*-\s*[^s]|\Z)"
+            hlavni_zony_section = re.search(hlavni_section_pattern, analysis, re.IGNORECASE | re.DOTALL)
+        else:
+            hlavni_section_pattern = r"Hlavní resistenční zón[^:]*:(.*?)(?=\n\s*-\s*[^r]|\Z)"
+            hlavni_zony_section = re.search(hlavni_section_pattern, analysis, re.IGNORECASE | re.DOTALL)
+
+        # Pokud máme hlavní sekci, extrahujeme první 2 zóny
+        prioritized_zones = []
+        if hlavni_zony_section:
+            section_text = hlavni_zony_section.group(1)
+            bullet_points = re.findall(r"\s*-\s*([^\n]+)", section_text)
+        
+            for i, point in enumerate(bullet_points):
+                # Extrahujeme první 2 zóny z hlavní sekce
+                if i >= 2:
+                    break
+                
+                range_match = re.search(r"(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)", point)
+                if range_match:
+                    try:
+                        min_val = float(range_match.group(1).replace(',', '.'))
+                        max_val = float(range_match.group(2).replace(',', '.'))
+                        # Ověření, zda hodnoty mají smysl pro cenu
+                        if min_val > 1000 and max_val > 1000 and min_val < max_val:
+                            prioritized_zones.append((min_val, max_val))
+                    except (ValueError, IndexError):
+                        continue
+
+        # Pokud jsme našli prioritizované zóny, použijeme je
+        if prioritized_zones:
+            return prioritized_zones
+
+        # Omezení počtu zón pro lepší přehlednost - zobrazit pouze 2 nejdůležitější
+        # Podpory seřadíme vzestupně, rezistence sestupně (důležitější jsou blíže k aktuální ceně)
+        if zones:
+            # Deduplikace zón
+            unique_zones = list(set(zones))
+            
+            # Seřazení podle relevance k aktuální ceně
             if zone_type.lower() == "support":
-                value_pattern = r'[Ss]upport.*?([0-9,.-]+)'
+                # Pro podpory - seřadit sestupně (nejvyšší první - blíže aktuální ceně)
+                unique_zones.sort(key=lambda x: x[0], reverse=True)
             else:
-                value_pattern = r'[Rr]esisten[cč][en].*?([0-9,.-]+)'
+                # Pro rezistence - seřadit vzestupně (nejnižší první - blíže aktuální ceně)
+                unique_zones.sort(key=lambda x: x[0])
         
-            matches = re.findall(value_pattern, analysis)
-            for match in matches:
-                try:
-                    value = float(match.replace(',', '.'))
-                    # Vytvoříme z konkrétní hodnoty malou zónu (±0.5%)
-                    margin = value * 0.005
-                    zones.append((value - margin, value + margin))
-                except ValueError:
-                    continue
-    
-        # Omezení počtu zón pro lepší přehlednost a výkon (max 8 - upraveno pro zahrnutí více úrovní)
-        if len(zones) > 8:
-            zones = zones[:8]
-        
-        return zones
+            # Vybrat max 2 nejrelevantnější zóny
+            return unique_zones[:2]
+
+        # Pokud nenajdeme žádné zóny pomocí regulárních výrazů, vracíme prázdný seznam
+        return []
 
     def process_data(self, klines_data):
         """
