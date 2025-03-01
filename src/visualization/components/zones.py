@@ -95,12 +95,21 @@ def draw_support_zones(ax, zones, start_date, colors):
         )
         ax.add_patch(rect)
         
-        # Přidání popisku do středu zóny
+        # NOVÝ FORMÁT: Přidání jednoho popisku s kompletními informacemi (zóna i rozsah)
         mid_point = (s_min + s_max) / 2
+        
+        # Zaokrouhlení hodnot na celá čísla
+        s_min_int = int(round(s_min))
+        s_max_int = int(round(s_max))
+        
+        # Vytvoření popisku s kompletními informacemi o zóně
+        label_text = f"S{i+1}: {s_min_int}-{s_max_int}"
+        
+        # Přidání popisku v levé části grafu (v zóně)
         ax.text(
             xlim[0] + xrange * 0.02,  # 2% od levého okraje
             mid_point,
-            f"S{i+1}: {mid_point:.0f}",
+            label_text,
             color='white',
             fontweight='bold',
             fontsize=9,
@@ -109,33 +118,6 @@ def draw_support_zones(ax, zones, start_date, colors):
                 alpha=0.7,
                 boxstyle='round,pad=0.3'
             ),
-            zorder=4
-        )
-        
-        # NOVÉ: Přidání popisků pro horní a dolní hranici zóny NA PRAVÉ STRANĚ grafu
-        # Popisek pro horní hranici
-        ax.text(
-            xlim[1] + xrange * 0.005,  # Těsně za pravým okrajem grafu
-            s_max,
-            f"{s_max:.0f}",
-            color=color,
-            fontweight='bold',
-            fontsize=8,
-            ha='left',  # Zarovnání doleva od bodu
-            va='center',  # Vertikálně centrováno
-            zorder=4
-        )
-        
-        # Popisek pro dolní hranici
-        ax.text(
-            xlim[1] + xrange * 0.005,  # Těsně za pravým okrajem grafu
-            s_min,
-            f"{s_min:.0f}",
-            color=color,
-            fontweight='bold',
-            fontsize=8,
-            ha='left',  # Zarovnání doleva od bodu
-            va='center',  # Vertikálně centrováno
             zorder=4
         )
         
@@ -231,12 +213,21 @@ def draw_resistance_zones(ax, zones, start_date, colors):
         )
         ax.add_patch(rect)
         
-        # Přidání popisku do středu zóny
+        # NOVÝ FORMÁT: Přidání jednoho popisku s kompletními informacemi (zóna i rozsah)
         mid_point = (r_min + r_max) / 2
+        
+        # Zaokrouhlení hodnot na celá čísla
+        r_min_int = int(round(r_min))
+        r_max_int = int(round(r_max))
+        
+        # Vytvoření popisku s kompletními informacemi o zóně
+        label_text = f"R{i+1}: {r_min_int}-{r_max_int}"
+        
+        # Přidání popisku v levé části grafu (v zóně)
         ax.text(
             xlim[0] + xrange * 0.02,  # 2% od levého okraje
             mid_point,
-            f"R{i+1}: {mid_point:.0f}",
+            label_text,
             color='white',
             fontweight='bold',
             fontsize=9,
@@ -245,33 +236,6 @@ def draw_resistance_zones(ax, zones, start_date, colors):
                 alpha=0.7,
                 boxstyle='round,pad=0.3'
             ),
-            zorder=4
-        )
-        
-        # NOVÉ: Přidání popisků pro horní a dolní hranici zóny NA PRAVÉ STRANĚ grafu
-        # Popisek pro horní hranici
-        ax.text(
-            xlim[1] + xrange * 0.005,  # Těsně za pravým okrajem grafu
-            r_max,
-            f"{r_max:.0f}",
-            color=color,
-            fontweight='bold',
-            fontsize=8,
-            ha='left',  # Zarovnání doleva od bodu
-            va='center',  # Vertikálně centrováno
-            zorder=4
-        )
-        
-        # Popisek pro dolní hranici
-        ax.text(
-            xlim[1] + xrange * 0.005,  # Těsně za pravým okrajem grafu
-            r_min,
-            f"{r_min:.0f}",
-            color=color,
-            fontweight='bold',
-            fontsize=8,
-            ha='left',  # Zarovnání doleva od bodu
-            va='center',  # Vertikálně centrováno
             zorder=4
         )
         
