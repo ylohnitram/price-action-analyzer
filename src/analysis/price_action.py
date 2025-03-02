@@ -186,8 +186,8 @@ DŮLEŽITÉ:
             analysis = response.choices[0].message.content
     
             # Extrahování zón supportů a resistancí
-            support_zones = self.extract_zones_from_analysis(analysis, "support")
-            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
+            support_zones = self.extract_zones_from_analysis(analysis, "support", latest_price)
+            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance", latest_price)
     
             return analysis, support_zones, resistance_zones
     
@@ -306,8 +306,8 @@ DŮLEŽITÉ:
             analysis = response.choices[0].message.content
         
             # Extrahování zón supportů a resistancí
-            support_zones = self.extract_zones_from_analysis(analysis, "support")
-            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
+            support_zones = self.extract_zones_from_analysis(analysis, "support", latest_price)
+            resistance_zones = self.extract_zones_from_analysis(analysis, "resistance", latest_price)
         
             # Extrahování scénářů pro vizualizaci
             scenarios = self.extract_scenarios_from_analysis(analysis, latest_price)
