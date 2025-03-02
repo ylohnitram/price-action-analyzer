@@ -145,11 +145,13 @@ Aktuální cena: {latest_price:.2f}
 
 ### HLAVNÍ SUPPORTNÍ ZÓNY:
 - (Uveďte 1-2 klíčové supportní zóny POUZE POD aktuální cenou {latest_price:.2f}, každou na nový řádek ve formátu "min-max")
-- Příklad správného formátu: "78250-81000" (vždy musí být min < max a max < {latest_price:.2f})
+- Supportní zóny musí být přesné a úzké a vhodné pro intraday obchodování
+- Příklad správného formátu: "85200-85700" (úzký rozsah vhodný pro intraday, pod aktuální cenou)
 
 ### HLAVNÍ RESISTENČNÍ ZÓNY:
 - (Uveďte 1-2 klíčové resistenční zóny POUZE NAD aktuální cenou {latest_price:.2f}, každou na nový řádek ve formátu "min-max")
-- Příklad správného formátu: "90000-92000" (vždy musí být min > {latest_price:.2f} a min < max)
+- Resistenční zóny musí být přesné a úzké a vhodné pro intraday obchodování
+- Příklad správného formátu: "86300-86800" (úzký rozsah vhodný pro intraday, nad aktuální cenou)
 
 ## 2. 🔍 INTRADAY PŘÍLEŽITOSTI (30m)
 - Aktuální situace v 30-minutovém timeframe
