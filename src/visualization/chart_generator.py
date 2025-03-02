@@ -7,6 +7,7 @@ matplotlib.use('Agg')
 import logging
 import re
 from datetime import datetime
+import os
 
 # Importy specializovaných grafů
 from src.visualization.charts.intraday_chart import IntradayChart
@@ -22,251 +23,222 @@ class ChartGenerator:
     """
     
     def extract_zones_from_text(self, analysis_text):
-        """Extrahuje zóny supportů a resistencí z textu analýzy."""
+        """
+        Extrahuje zóny supportů a resistencí z textu analýzy.
+        Očekává strukturované sekce ve formátu '### HLAVNÍ SUPPORTNÍ ZÓNY:' a '### HLAVNÍ RESISTENČNÍ ZÓNY:'.
+        
+        Args:
+            analysis_text (str): Text analýzy
+            
+        Returns:
+            tuple: (support_zones, resistance_zones) jako seznamy (min, max) tuple
+        """
         support_zones = []
         resistance_zones = []
         
-        # Hledání supportních zón v sekci supportních zón
-        support_section_pattern = r"Hlavní supportní zón[^:]*:([^#]+)"
-        support_section = re.search(support_section_pattern, analysis_text, re.IGNORECASE | re.DOTALL)
-        
+        # Extrakce supportních zón
+        support_section = re.search(r"### HLAVNÍ SUPPORTNÍ ZÓNY:(.*?)(?:###|\Z)", analysis_text, re.DOTALL)
         if support_section:
-            # Získáme text sekce supportů
-            section_text = support_section.group(1)
+            section_text = support_section.group(1).strip()
             logger.info(f"Nalezena sekce supportních zón: {section_text}")
             
-            # Hledání všech odrážek v sekci
-            bullet_points = re.findall(r"\s*-\s*([^\n]+)", section_text)
-            for point in bullet_points:
-                # Hledání číselného rozsahu v každé odrážce
-                range_match = re.search(r"(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)", point)
-                if range_match:
-                    try:
-                        s_min = float(range_match.group(1).replace(',', '.'))
-                        s_max = float(range_match.group(2).replace(',', '.'))
-                        # Ověření, zda hodnoty mají smysl pro cenu BTC
-                        if s_min > 1000 and s_max > 1000 and s_min < s_max:
-                            support_zones.append((s_min, s_max))
-                            logger.info(f"Extrahována supportní zóna: {s_min}-{s_max}")
-                    except (ValueError, IndexError) as e:
-                        logger.warning(f"Chyba při zpracování supportní zóny '{point}': {str(e)}")
-                        continue
+            # Hledání všech odrážek s cenovými rozsahy
+            bullet_points = re.findall(r"- (\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)", section_text)
+            
+            for min_price, max_price in bullet_points:
+                try:
+                    min_value = float(min_price.replace(',', '.'))
+                    max_value = float(max_price.replace(',', '.'))
+                    
+                    # Validace hodnot
+                    if min_value < max_value:
+                        support_zones.append((min_value, max_value))
+                        logger.info(f"Extrahována supportní zóna: {min_value}-{max_value}")
+                    else:
+                        logger.warning(f"Ignorována neplatná support zóna s min > max: {min_value}-{max_value}")
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Chyba při zpracování supportní zóny: {str(e)}")
+                    continue
+        else:
+            logger.warning("Strukturovaná sekce supportních zón nebyla nalezena")
         
-        # Hledání rezistenčních zón v sekci rezistenčních zón
-        resistance_section_pattern = r"Hlavní resistenční zón[^:]*:([^#]+)"
-        resistance_section = re.search(resistance_section_pattern, analysis_text, re.IGNORECASE | re.DOTALL)
-        
+        # Extrakce resistenčních zón
+        resistance_section = re.search(r"### HLAVNÍ RESISTENČNÍ ZÓNY:(.*?)(?:###|\Z)", analysis_text, re.DOTALL)
         if resistance_section:
-            # Získáme text sekce rezistencí
-            section_text = resistance_section.group(1)
-            logger.info(f"Nalezena sekce rezistenčních zón: {section_text}")
+            section_text = resistance_section.group(1).strip()
+            logger.info(f"Nalezena sekce resistenčních zón: {section_text}")
             
-            # Hledání všech odrážek v sekci
-            bullet_points = re.findall(r"\s*-\s*([^\n]+)", section_text)
-            for point in bullet_points:
-                # Hledání číselného rozsahu v každé odrážce
-                range_match = re.search(r"(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)", point)
-                if range_match:
-                    try:
-                        r_min = float(range_match.group(1).replace(',', '.'))
-                        r_max = float(range_match.group(2).replace(',', '.'))
-                        # Ověření, zda hodnoty mají smysl pro cenu BTC
-                        if r_min > 1000 and r_max > 1000 and r_min < r_max:
-                            resistance_zones.append((r_min, r_max))
-                            logger.info(f"Extrahována rezistenční zóna: {r_min}-{r_max}")
-                    except (ValueError, IndexError) as e:
-                        logger.warning(f"Chyba při zpracování rezistenční zóny '{point}': {str(e)}")
-                        continue
-        
-        # Pokud nenajdeme zóny v sekcích, zkusíme hledat v celém textu
-        if not support_zones:
-            # Obecnější vzory pro hledání supportních zón v celém textu
-            support_patterns = [
-                r"[Ss]upport.*?(\d{4,6}(?:[.,]\d+)?)\s*-\s*(\d{4,6}(?:[.,]\d+)?)",
-                r"[Pp]odpora.*?(\d{4,6}(?:[.,]\d+)?)\s*-\s*(\d{4,6}(?:[.,]\d+)?)"
-            ]
+            # Hledání všech odrážek s cenovými rozsahy
+            bullet_points = re.findall(r"- (\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)", section_text)
             
-            for pattern in support_patterns:
-                support_matches = re.findall(pattern, analysis_text, re.IGNORECASE | re.DOTALL)
-                for match in support_matches:
-                    try:
-                        s_min = float(match[0].replace(',', '.'))
-                        s_max = float(match[1].replace(',', '.'))
-                        # Ověření, zda hodnoty mají smysl pro cenu BTC
-                        if s_min > 1000 and s_max > 1000 and s_min < s_max:
-                            support_zones.append((s_min, s_max))
-                            logger.info(f"Extrahována supportní zóna z textu: {s_min}-{s_max}")
-                    except (ValueError, IndexError) as e:
-                        logger.warning(f"Chyba při zpracování supportní zóny z textu: {str(e)}")
-                        continue
-        
-        if not resistance_zones:
-            # Obecnější vzory pro hledání rezistenčních zón v celém textu
-            resistance_patterns = [
-                r"[Rr]esisten[cč].*?(\d{4,6}(?:[.,]\d+)?)\s*-\s*(\d{4,6}(?:[.,]\d+)?)",
-                r"[Rr]ezisten[cč].*?(\d{4,6}(?:[.,]\d+)?)\s*-\s*(\d{4,6}(?:[.,]\d+)?)",
-                r"[Oo]dpor.*?(\d{4,6}(?:[.,]\d+)?)\s*-\s*(\d{4,6}(?:[.,]\d+)?)"
-            ]
-            
-            for pattern in resistance_patterns:
-                resistance_matches = re.findall(pattern, analysis_text, re.IGNORECASE | re.DOTALL)
-                for match in resistance_matches:
-                    try:
-                        r_min = float(match[0].replace(',', '.'))
-                        r_max = float(match[1].replace(',', '.'))
-                        # Ověření, zda hodnoty mají smysl pro cenu BTC
-                        if r_min > 1000 and r_max > 1000 and r_min < r_max:
-                            resistance_zones.append((r_min, r_max))
-                            logger.info(f"Extrahována rezistenční zóna z textu: {r_min}-{r_max}")
-                    except (ValueError, IndexError) as e:
-                        logger.warning(f"Chyba při zpracování rezistenční zóny z textu: {str(e)}")
-                        continue
-        
-        # Můžeme zkusit hledat i v sekci pro střednědobý kontext
-        context_section = re.search(r"STŘEDNĚDOBÝ KONTEXT.*?:([^#]+)", analysis_text, re.IGNORECASE | re.DOTALL)
-        if context_section:
-            section_text = context_section.group(1)
-            
-            # Hledání support/resistance v sekci střednědobého kontextu
-            support_in_context = re.findall(r"[Ss]upport:?\s*(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)", section_text)
-            for match in support_in_context:
+            for min_price, max_price in bullet_points:
                 try:
-                    s_min = float(match[0].replace(',', '.'))
-                    s_max = float(match[1].replace(',', '.'))
-                    # Ověření, zda hodnoty mají smysl pro cenu BTC
-                    if s_min > 1000 and s_max > 1000 and s_min < s_max:
-                        support_zones.append((s_min, s_max))
-                        logger.info(f"Extrahována supportní zóna z kontextu: {s_min}-{s_max}")
+                    min_value = float(min_price.replace(',', '.'))
+                    max_value = float(max_price.replace(',', '.'))
+                    
+                    # Validace hodnot
+                    if min_value < max_value:
+                        resistance_zones.append((min_value, max_value))
+                        logger.info(f"Extrahována resistenční zóna: {min_value}-{max_value}")
+                    else:
+                        logger.warning(f"Ignorována neplatná resistance zóna s min > max: {min_value}-{max_value}")
                 except (ValueError, IndexError) as e:
-                    logger.warning(f"Chyba při zpracování supportní zóny z kontextu: {str(e)}")
+                    logger.warning(f"Chyba při zpracování resistenční zóny: {str(e)}")
                     continue
+        else:
+            logger.warning("Strukturovaná sekce resistenčních zón nebyla nalezena")
+        
+        # Fallback - pokud v popisku nebyla nalezena žádná sekce v očekávaném formátu
+        if not support_zones or not resistance_zones:
+            logger.warning("Použití alternativní metody pro detekci zón")
             
-            resistance_in_context = re.findall(r"[Rr]esistance:?\s*(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)", section_text)
-            for match in resistance_in_context:
-                try:
-                    r_min = float(match[0].replace(',', '.'))
-                    r_max = float(match[1].replace(',', '.'))
-                    # Ověření, zda hodnoty mají smysl pro cenu BTC
-                    if r_min > 1000 and r_max > 1000 and r_min < r_max:
-                        resistance_zones.append((r_min, r_max))
-                        logger.info(f"Extrahována rezistenční zóna z kontextu: {r_min}-{r_max}")
-                except (ValueError, IndexError) as e:
-                    logger.warning(f"Chyba při zpracování rezistenční zóny z kontextu: {str(e)}")
-                    continue
+            # Hledání v sekci KRÁTKODOBÝ TREND A KONTEXT (pro intraday analýzy)
+            trend_section = re.search(r"KRÁTKODOBÝ TREND A KONTEXT[^#]*", analysis_text, re.IGNORECASE | re.DOTALL)
+            if trend_section and (not support_zones or not resistance_zones):
+                section_text = trend_section.group(0)
+                
+                # Hledání zmínek o podpoře a rezistenci
+                if not support_zones:
+                    support_matches = re.findall(r"[Pp]odpora:?\s*(\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)", section_text)
+                    for min_price, max_price in support_matches:
+                        try:
+                            min_value = float(min_price.replace(',', '.'))
+                            max_value = float(max_price.replace(',', '.'))
+                            if min_value < max_value:
+                                support_zones.append((min_value, max_value))
+                                logger.info(f"Extrahována supportní zóna z trendu: {min_value}-{max_value}")
+                        except (ValueError, IndexError):
+                            continue
+                
+                if not resistance_zones:
+                    resistance_matches = re.findall(r"[Rr]ezistence:?\s*(\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)", section_text)
+                    for min_price, max_price in resistance_matches:
+                        try:
+                            min_value = float(min_price.replace(',', '.'))
+                            max_value = float(max_price.replace(',', '.'))
+                            if min_value < max_value:
+                                resistance_zones.append((min_value, max_value))
+                                logger.info(f"Extrahována rezistenční zóna z trendu: {min_value}-{max_value}")
+                        except (ValueError, IndexError):
+                            continue
         
-        # Deduplikace a setřídění zón
-        support_zones = list(set(support_zones))
-        resistance_zones = list(set(resistance_zones))
+        # Limitování počtu zón na maximálně 2 pro lepší přehlednost v grafu
+        if len(support_zones) > 2:
+            logger.info(f"Omezení počtu supportních zón z {len(support_zones)} na 2")
+            support_zones = support_zones[:2]
         
-        # Seřazení zón podle ceny
-        support_zones.sort(key=lambda x: x[0])
-        resistance_zones.sort(key=lambda x: x[0])
-        
-        # Omezení počtu zón pro lepší přehlednost (max 8)
-        if len(support_zones) > 8:
-            support_zones = support_zones[:8]
-        if len(resistance_zones) > 8:
-            resistance_zones = resistance_zones[:8]
-        
-        # Odfiltrování nevyhovujících zón (nereálných hodnot pro BTC)
-        support_zones = [(min_p, max_p) for min_p, max_p in support_zones if min_p > 1000 and max_p < 200000]
-        resistance_zones = [(min_p, max_p) for min_p, max_p in resistance_zones if min_p > 1000 and max_p < 200000]
+        if len(resistance_zones) > 2:
+            logger.info(f"Omezení počtu resistenčních zón z {len(resistance_zones)} na 2")
+            resistance_zones = resistance_zones[:2]
         
         logger.info(f"Finální supportní zóny: {support_zones}")
-        logger.info(f"Finální rezistenční zóny: {resistance_zones}")
-            
+        logger.info(f"Finální resistenční zóny: {resistance_zones}")
+        
         return support_zones, resistance_zones
     
     def extract_scenarios_from_text(self, analysis_text, current_price):
-        """Extrahuje scénáře pro vizualizaci z textu analýzy."""
+        """
+        Extrahuje scénáře pro vizualizaci z textu analýzy.
+        Očekává strukturované sekce jako '### BULLISH SCÉNÁŘ:' atd.
+        
+        Args:
+            analysis_text (str): Text analýzy
+            current_price (float): Aktuální cena
+            
+        Returns:
+            list: Seznam scénářů jako [('bullish', target_price), ('bearish', target_price), ...]
+        """
         scenarios = []
         
-        # Hledat sekci "MOŽNÉ SCÉNÁŘE DALŠÍHO VÝVOJE"
-        scenario_section = re.search(r'(MOŽNÉ SCÉNÁŘE|SCÉNÁŘE|SCENÁŘE|VÝVOJE)(.*?)(##|\Z)', 
-                                    analysis_text, re.DOTALL | re.IGNORECASE)
-        
-        if scenario_section:
-            scenario_text = scenario_section.group(2)
-            logger.info(f"Nalezena sekce scénářů: {scenario_text}")
-            
-            # Hledání bullish scénáře a ceny
-            bullish_section = re.search(r'- [Bb]ullish.*?(\d{4,6}(?:[.,]\d+)?)', scenario_text, re.DOTALL)
-            if bullish_section:
+        # Hledání bullish scénáře
+        bullish_section = re.search(r"### BULLISH SCÉNÁŘ:(.*?)(?:###|\Z)", analysis_text, re.DOTALL)
+        if bullish_section:
+            # Hledání cílové úrovně
+            target_match = re.search(r"Cílová úroveň:?\s*\[?(\d+(?:[.,]\d+)?)\]?", bullish_section.group(1))
+            if target_match:
                 try:
-                    bullish_target = float(bullish_section.group(1).replace(',', '.'))
-                    # Ověření, zda hodnoty mají smysl pro cenu BTC
-                    if bullish_target > 1000 and bullish_target > current_price:
+                    bullish_target = float(target_match.group(1).replace(',', '.'))
+                    if bullish_target > current_price:
                         scenarios.append(('bullish', bullish_target))
                         logger.info(f"Extrahován bullish scénář s cílem: {bullish_target}")
+                    else:
+                        logger.warning(f"Bullish cíl {bullish_target} není nad aktuální cenou {current_price}")
                 except (ValueError, IndexError) as e:
                     logger.warning(f"Chyba při zpracování bullish scénáře: {str(e)}")
-            
-            # Hledání bearish scénáře a ceny
-            bearish_section = re.search(r'- [Bb]earish.*?(\d{4,6}(?:[.,]\d+)?)', scenario_text, re.DOTALL)
-            if bearish_section:
+        else:
+            logger.info("Bullish scénář nebyl nalezen v strukturované sekci")
+        
+        # Hledání bearish scénáře
+        bearish_section = re.search(r"### BEARISH SCÉNÁŘ:(.*?)(?:###|\Z)", analysis_text, re.DOTALL)
+        if bearish_section:
+            # Hledání cílové úrovně
+            target_match = re.search(r"Cílová úroveň:?\s*\[?(\d+(?:[.,]\d+)?)\]?", bearish_section.group(1))
+            if target_match:
                 try:
-                    bearish_target = float(bearish_section.group(1).replace(',', '.'))
-                    # Ověření, zda hodnoty mají smysl pro cenu BTC
-                    if bearish_target > 1000 and bearish_target < current_price:
+                    bearish_target = float(target_match.group(1).replace(',', '.'))
+                    if bearish_target < current_price:
                         scenarios.append(('bearish', bearish_target))
                         logger.info(f"Extrahován bearish scénář s cílem: {bearish_target}")
+                    else:
+                        logger.warning(f"Bearish cíl {bearish_target} není pod aktuální cenou {current_price}")
                 except (ValueError, IndexError) as e:
                     logger.warning(f"Chyba při zpracování bearish scénáře: {str(e)}")
-            
-            # Hledání neutrálního scénáře (pokud má explicitní cenový rozsah)
-            neutral_section = re.search(r'- [Nn]eutrální.*?(\d{4,6}(?:[.,]\d+)?).*?(\d{4,6}(?:[.,]\d+)?)', scenario_text, re.DOTALL)
-            if neutral_section:
+        else:
+            logger.info("Bearish scénář nebyl nalezen v strukturované sekci")
+        
+        # Hledání neutrálního scénáře
+        neutral_section = re.search(r"### NEUTRÁLNÍ SCÉNÁŘ:(.*?)(?:###|\Z)", analysis_text, re.DOTALL)
+        if neutral_section:
+            # Hledání očekávaného rozsahu
+            range_match = re.search(r"Očekávaný rozsah:?\s*\[?(\d+(?:[.,]\d+)?)\]?-\[?(\d+(?:[.,]\d+)?)\]?", neutral_section.group(1))
+            if range_match:
                 try:
-                    lower_bound = float(neutral_section.group(1).replace(',', '.'))
-                    upper_bound = float(neutral_section.group(2).replace(',', '.'))
-                    
-                    # Ověření, zda hodnoty mají smysl pro cenu BTC
-                    if lower_bound > 1000 and upper_bound > 1000 and lower_bound < upper_bound:
+                    lower_bound = float(range_match.group(1).replace(',', '.'))
+                    upper_bound = float(range_match.group(2).replace(',', '.'))
+                    if lower_bound < upper_bound:
                         scenarios.append(('neutral', (lower_bound, upper_bound)))
                         logger.info(f"Extrahován neutrální scénář s rozsahem: {lower_bound}-{upper_bound}")
+                    else:
+                        logger.warning(f"Neutrální rozsah {lower_bound}-{upper_bound} má min > max")
                 except (ValueError, IndexError) as e:
                     logger.warning(f"Chyba při zpracování neutrálního scénáře: {str(e)}")
-            
-            # Pokud stále nemáme neutrální scénář, zkusíme jiný vzor
-            if not any(s[0] == 'neutral' for s in scenarios):
-                # Hledáme "oscilovat mezi X a Y"
-                oscillation_pattern = re.search(r'oscilovat\s+mezi\s+(\d{4,6}(?:[.,]\d+)?)\s+a\s+(\d{4,6}(?:[.,]\d+)?)', scenario_text, re.IGNORECASE)
-                if oscillation_pattern:
-                    try:
-                        lower_bound = float(oscillation_pattern.group(1).replace(',', '.'))
-                        upper_bound = float(oscillation_pattern.group(2).replace(',', '.'))
-                        
-                        # Ověření, zda hodnoty mají smysl pro cenu BTC
-                        if lower_bound > 1000 and upper_bound > 1000 and lower_bound < upper_bound:
-                            scenarios.append(('neutral', (lower_bound, upper_bound)))
-                            logger.info(f"Extrahován neutrální scénář s oscilací: {lower_bound}-{upper_bound}")
-                    except (ValueError, IndexError) as e:
-                        logger.warning(f"Chyba při zpracování neutrálního scénáře (oscilace): {str(e)}")
+        else:
+            logger.info("Neutrální scénář nebyl nalezen v strukturované sekci")
         
-        # Kontrola, že máme scénáře - pokud ne, zkusíme méně striktní přístup
+        # Fallback - pokud nebyly nalezeny žádné scénáře ve strukturovaném formátu
         if not scenarios:
-            logger.warning("Standardní extrakce scénářů selhala, zkouším alternativní přístup")
+            logger.warning("Použití alternativní metody pro detekci scénářů")
             
-            # Hledání všech čísel v textu, které by mohly být cenovými cíli
-            price_targets = re.findall(r'(\d{4,6}(?:[.,]\d+)?)', analysis_text)
-            price_targets = [float(p.replace(',', '.')) for p in price_targets if float(p.replace(',', '.')) > 1000]
-            
-            # Najdeme hodnoty nad a pod aktuální cenou, které jsou od ní relativně vzdálené
-            higher_targets = [p for p in price_targets if p > current_price * 1.05]  # 5% nad aktuální cenou
-            lower_targets = [p for p in price_targets if p < current_price * 0.95]   # 5% pod aktuální cenou
-            
-            # Pokud najdeme cíle, přidáme je jako scénáře
-            if higher_targets:
-                bullish_target = min(higher_targets)  # Nejbližší cíl nad aktuální cenou
-                scenarios.append(('bullish', bullish_target))
-                logger.info(f"Extrahován bullish scénář pomocí alternativní metody: {bullish_target}")
-            
-            if lower_targets:
-                bearish_target = max(lower_targets)  # Nejbližší cíl pod aktuální cenou
-                scenarios.append(('bearish', bearish_target))
-                logger.info(f"Extrahován bearish scénář pomocí alternativní metody: {bearish_target}")
+            # Hledání v sekci možných scénářů
+            scenario_section = re.search(r"MOŽNÉ SCÉNÁŘE DALŠÍHO VÝVOJE(.*?)(?:##|\Z)", analysis_text, re.DOTALL | re.IGNORECASE)
+            if scenario_section:
+                scenario_text = scenario_section.group(1)
+                
+                # Hledání bullish cíle
+                if not any(s[0] == 'bullish' for s in scenarios):
+                    bullish_matches = re.findall(r"[Bb]ullish.*?(\d{4,6}(?:[.,]\d+)?)", scenario_text)
+                    if bullish_matches:
+                        try:
+                            bullish_target = float(bullish_matches[0].replace(',', '.'))
+                            if bullish_target > current_price * 1.005:  # Alespoň 0.5% nad aktuální cenou
+                                scenarios.append(('bullish', bullish_target))
+                                logger.info(f"Extrahován bullish scénář alternativním způsobem: {bullish_target}")
+                        except (ValueError, IndexError):
+                            pass
+                
+                # Hledání bearish cíle
+                if not any(s[0] == 'bearish' for s in scenarios):
+                    bearish_matches = re.findall(r"[Bb]earish.*?(\d{4,6}(?:[.,]\d+)?)", scenario_text)
+                    if bearish_matches:
+                        try:
+                            bearish_target = float(bearish_matches[0].replace(',', '.'))
+                            if bearish_target < current_price * 0.995:  # Alespoň 0.5% pod aktuální cenou
+                                scenarios.append(('bearish', bearish_target))
+                                logger.info(f"Extrahován bearish scénář alternativním způsobem: {bearish_target}")
+                        except (ValueError, IndexError):
+                            pass
         
-        logger.info(f"Finální extrahované scénáře: {scenarios}")
+        logger.info(f"Finální scénáře: {scenarios}")
         return scenarios
 
     def generate_chart(self, df, support_zones, resistance_zones, symbol, 
@@ -293,61 +265,78 @@ class ChartGenerator:
             str: Cesta k vygenerovanému grafickému souboru
         """
         # Logování základních informací
-        logger.info(f"Generating chart for {symbol} ({timeframe}), analysis type: {analysis_type}")
+        logger.info(f"Generuji graf pro {symbol} ({timeframe}), typ analýzy: {analysis_type}")
         
         # Nastavení výchozí cesty pro uložení grafu
         if not filename:
+            charts_dir = "charts"
+            os.makedirs(charts_dir, exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"charts/{symbol}_{timeframe}_{timestamp}.png"
+            filename = os.path.join(charts_dir, f"{symbol}_{timeframe}_{timestamp}.png")
         
-        # Extrakce zón z textu, pokud nebyly předány
-        if (not support_zones or not resistance_zones) and analysis_text:
+        # Extrakce zón z textu, pokud nebyly předány nebo jsou prázdné
+        if analysis_text and (not support_zones or not resistance_zones):
             extracted_support, extracted_resistance = self.extract_zones_from_text(analysis_text)
             
             if not support_zones:
                 support_zones = extracted_support
+                logger.info(f"Použití extrahovaných supportních zón: {support_zones}")
             
             if not resistance_zones:
                 resistance_zones = extracted_resistance
+                logger.info(f"Použití extrahovaných resistenčních zón: {resistance_zones}")
         
         # Extrakce scénářů z textu, pokud nebyly předány a jedná se o swing analýzu
         if analysis_type == "swing" and not scenarios and analysis_text:
-            current_price = df['close'].iloc[-1] if len(df) > 0 else None
-            if current_price:
-                scenarios = self.extract_scenarios_from_text(analysis_text, current_price)
+            try:
+                current_price = df['close'].iloc[-1] if len(df) > 0 else None
+                if current_price:
+                    scenarios = self.extract_scenarios_from_text(analysis_text, current_price)
+                    logger.info(f"Použití extrahovaných scénářů: {scenarios}")
+            except Exception as e:
+                logger.error(f"Chyba při extrakci scénářů: {str(e)}")
         
         # Výběr správného typu grafu podle typu analýzy
-        if analysis_type == "swing":
-            chart = SwingChart(
-                df, 
-                symbol, 
-                timeframe=timeframe, 
-                days_to_show=days_to_show
-            )
-            chart.add_support_zones(support_zones)
-            chart.add_resistance_zones(resistance_zones)
-            if scenarios:
-                chart.add_scenarios(scenarios)
-        
-        elif analysis_type == "intraday":
-            chart = IntradayChart(
-                df, 
-                symbol, 
-                timeframe=timeframe, 
-                hours_to_show=hours_to_show if hours_to_show else days_to_show * 24
-            )
-            chart.add_support_zones(support_zones)
-            chart.add_resistance_zones(resistance_zones)
-        
-        else:  # simple
-            chart = SimpleChart(
-                df, 
-                symbol, 
-                timeframe=timeframe,
-                days_to_show=days_to_show
-            )
-            chart.add_support_zones(support_zones)
-            chart.add_resistance_zones(resistance_zones)
-        
-        # Vykreslení a uložení grafu
-        return chart.render(filename)
+        try:
+            if analysis_type == "swing":
+                chart = SwingChart(
+                    df, 
+                    symbol, 
+                    timeframe=timeframe, 
+                    days_to_show=days_to_show
+                )
+                chart.add_support_zones(support_zones)
+                chart.add_resistance_zones(resistance_zones)
+                if scenarios:
+                    chart.add_scenarios(scenarios)
+            
+            elif analysis_type == "intraday":
+                chart = IntradayChart(
+                    df, 
+                    symbol, 
+                    timeframe=timeframe, 
+                    hours_to_show=hours_to_show if hours_to_show else days_to_show * 24
+                )
+                chart.add_support_zones(support_zones)
+                chart.add_resistance_zones(resistance_zones)
+            
+            else:  # simple
+                chart = SimpleChart(
+                    df, 
+                    symbol, 
+                    timeframe=timeframe,
+                    days_to_show=days_to_show
+                )
+                chart.add_support_zones(support_zones)
+                chart.add_resistance_zones(resistance_zones)
+            
+            # Vykreslení a uložení grafu
+            chart_path = chart.render(filename)
+            logger.info(f"Graf úspěšně vygenerován: {chart_path}")
+            return chart_path
+            
+        except Exception as e:
+            logger.error(f"Chyba při generování grafu: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None

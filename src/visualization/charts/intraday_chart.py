@@ -86,6 +86,21 @@ class IntradayChart(BaseChart):
             zones (list): Seznam zón jako (min, max) tuples
         """
         if not zones:
+            logger.warning("Nebyly předány žádné supportní zóny pro zobrazení")
+            
+            # Vytvoření výchozí support zóny pouze pokud se jedná o skutečnou vizualizaci s daty
+            if len(self.plot_data) > 0:
+                try:
+                    # Získáme aktuální cenu a vytvoříme support zónu pod ní
+                    current_price = self.plot_data['Close'].iloc[-1]
+                    min_price = current_price * 0.98  # 2% pod aktuální cenou
+                    max_price = current_price * 0.985  # 1.5% pod aktuální cenou
+                    
+                    # Vytvoříme support zónu
+                    zones = [(min_price, max_price)]
+                    logger.info(f"Vytvořena výchozí supportní zóna: {zones}")
+                except Exception as e:
+                    logger.error(f"Chyba při vytváření výchozí supportní zóny: {str(e)}")
             return
             
         # Získání barevného schématu
@@ -97,6 +112,7 @@ class IntradayChart(BaseChart):
         # Přidání do legendy
         if support_zone_added:
             self.legend_elements.append(Line2D([0], [0], color=zone_colors[0], lw=2, linestyle='--', label='Support Zone'))
+            logger.info("Přidána supportní zóna do legendy")
             
     def add_resistance_zones(self, zones):
         """
@@ -106,6 +122,21 @@ class IntradayChart(BaseChart):
             zones (list): Seznam zón jako (min, max) tuples
         """
         if not zones:
+            logger.warning("Nebyly předány žádné resistenční zóny pro zobrazení")
+            
+            # Vytvoření výchozí resistance zóny pouze pokud se jedná o skutečnou vizualizaci s daty
+            if len(self.plot_data) > 0:
+                try:
+                    # Získáme aktuální cenu a vytvoříme resistance zónu nad ní
+                    current_price = self.plot_data['Close'].iloc[-1]
+                    min_price = current_price * 1.015  # 1.5% nad aktuální cenou
+                    max_price = current_price * 1.02   # 2% nad aktuální cenou
+                    
+                    # Vytvoříme resistance zónu
+                    zones = [(min_price, max_price)]
+                    logger.info(f"Vytvořena výchozí resistenční zóna: {zones}")
+                except Exception as e:
+                    logger.error(f"Chyba při vytváření výchozí resistenční zóny: {str(e)}")
             return
             
         # Získání barevného schématu
@@ -117,6 +148,7 @@ class IntradayChart(BaseChart):
         # Přidání do legendy
         if resistance_zone_added:
             self.legend_elements.append(Line2D([0], [0], color=zone_colors[0], lw=2, linestyle='--', label='Resistance Zone'))
+            logger.info("Přidána resistenční zóna do legendy")
             
     def render(self, filename=None):
         """
@@ -130,13 +162,25 @@ class IntradayChart(BaseChart):
         """
         # Přidání legendy pokud máme nějaké elementy
         if self.legend_elements:
+            # Pozicování legendy v levém horním rohu
             self.ax1.legend(
                 handles=self.legend_elements,
                 loc='upper left',
                 fontsize=10,
                 framealpha=0.8,
-                ncol=len(self.legend_elements)
+                ncol=min(len(self.legend_elements), 2)  # Maximálně 2 sloupce pro lepší čitelnost
             )
+            logger.info(f"Přidáno {len(self.legend_elements)} prvků do legendy")
+        
+        # Nastavení rozsahu y-osy pro lepší čitelnost a prostor pro popisky
+        try:
+            # Ponecháme 3% prostoru na vrchní části grafu pro popisky
+            y_min, y_max = self.ax1.get_ylim()
+            range_y = y_max - y_min
+            self.ax1.set_ylim(y_min, y_max + range_y * 0.03)
+            logger.info(f"Upraveny limity y-osy: {y_min} - {y_max + range_y * 0.03}")
+        except Exception as e:
+            logger.warning(f"Nepodařilo se upravit limity y-osy: {str(e)}")
         
         # Volání render metody ze základní třídy
         return super().render(filename)

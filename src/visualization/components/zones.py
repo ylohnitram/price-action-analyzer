@@ -30,21 +30,36 @@ def draw_support_zones(ax, zones, start_date, colors):
     # Kontrola, zda zóny mají správný formát a rozumné hodnoty
     valid_zones = []
     for z_min, z_max in zones:
-        if np.isnan(z_min) or np.isnan(z_max):
-            logger.warning(f"Ignoruji zónu s NaN hodnotami: {(z_min, z_max)}")
-            continue
-        if z_min < 0 or z_max < 0:
-            logger.warning(f"Ignoruji zónu se zápornými hodnotami: {(z_min, z_max)}")
-            continue
-        if z_min > z_max:
-            logger.warning(f"Ignoruji zónu s min > max: {(z_min, z_max)}")
-            continue
-        if z_min < 1000 or z_max > 200000:  # Základní kontrola rozsahu pro BTC
-            logger.warning(f"Ignoruji zónu mimo realistický rozsah pro BTC: {(z_min, z_max)}")
-            continue
-        valid_zones.append((z_min, z_max))
+        try:
+            # Převod na float pokud by hodnoty byly string
+            if isinstance(z_min, str):
+                z_min = float(z_min.replace(',', '.'))
+            if isinstance(z_max, str):
+                z_max = float(z_max.replace(',', '.'))
 
-    # Omezíme na maximálně 2 zóny
+            # Kontroly platnosti zóny
+            if np.isnan(z_min) or np.isnan(z_max):
+                logger.warning(f"Ignoruji zónu s NaN hodnotami: {(z_min, z_max)}")
+                continue
+            if z_min < 0 or z_max < 0:
+                logger.warning(f"Ignoruji zónu se zápornými hodnotami: {(z_min, z_max)}")
+                continue
+            if z_min > z_max:
+                logger.warning(f"Ignoruji zónu s min > max: {(z_min, z_max)}")
+                continue
+            
+            # Pro různé kryptoměny budou různé cenové rozsahy, proto
+            # odstraníme specifickou kontrolu pro BTC a pouze zajistíme, aby byl rozsah rozumný
+            if z_max > z_min * 10:
+                logger.warning(f"Ignoruji zónu s příliš velkým rozsahem: {(z_min, z_max)}")
+                continue
+                
+            valid_zones.append((z_min, z_max))
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Chyba při zpracování zóny {(z_min, z_max)}: {str(e)}")
+            continue
+
+    # Omezíme na maximálně 2 zóny pro lepší přehlednost
     if len(valid_zones) > 2:
         logger.info(f"Omezuji počet supportních zón z {len(valid_zones)} na 2 pro lepší přehlednost")
         valid_zones = valid_zones[:2]
@@ -77,8 +92,8 @@ def draw_support_zones(ax, zones, start_date, colors):
             # Pokud je to první zóna, rozšíříme osu y
             if i == 0:
                 logger.info(f"Rozšiřuji y-osu pro supportní zónu: {(s_min, s_max)}")
-                new_y_min = min(y_min, s_min * 0.9)  # Přidáme 10% prostoru pod zónou
-                new_y_max = max(y_max, s_max * 1.1)  # Přidáme 10% prostoru nad zónou
+                new_y_min = min(y_min, s_min * 0.95)  # Přidáme 5% prostoru pod zónou
+                new_y_max = max(y_max, s_max * 1.05)  # Přidáme 5% prostoru nad zónou
                 ax.set_ylim(new_y_min, new_y_max)
             else:
                 continue
@@ -104,16 +119,20 @@ def draw_support_zones(ax, zones, start_date, colors):
         # Přidání popisku s kompletními informacemi o zóně
         mid_point = (s_min + s_max) / 2
 
-        # Zaokrouhlení hodnot na celá čísla
-        s_min_int = int(round(s_min))
-        s_max_int = int(round(s_max))
+        # Zaokrouhlení hodnot na celá čísla nebo na 1 desetinné místo pro menší hodnoty
+        if s_min >= 100:
+            s_min_formatted = int(round(s_min))
+            s_max_formatted = int(round(s_max))
+        else:
+            s_min_formatted = round(s_min, 1)
+            s_max_formatted = round(s_max, 1)
 
         # Vytvoření popisku s kompletními informacemi o zóně - jednodušší označení
-        label_text = f"S{i+1}: {s_min_int}-{s_max_int}"
+        label_text = f"S{i+1}: {s_min_formatted}-{s_max_formatted}"
 
-        # Přidání popisku v levé části grafu (v zóně)
+        # Přidání popisku v pravé části grafu (daleko od legendy)
         ax.text(
-            xlim[0] + xrange * 0.02,  # 2% od levého okraje
+            xlim[0] + xrange * 0.85,  # 85% od levého okraje (blízko pravého okraje)
             mid_point,
             label_text,
             color='white',
@@ -124,7 +143,8 @@ def draw_support_zones(ax, zones, start_date, colors):
                 alpha=0.7,
                 boxstyle='round,pad=0.3'
             ),
-            zorder=4
+            zorder=4,
+            horizontalalignment='right'  # Zarovnání doprava
         )
 
         zone_added = True
@@ -153,19 +173,34 @@ def draw_resistance_zones(ax, zones, start_date, colors):
     # Kontrola, zda zóny mají správný formát a rozumné hodnoty
     valid_zones = []
     for z_min, z_max in zones:
-        if np.isnan(z_min) or np.isnan(z_max):
-            logger.warning(f"Ignoruji zónu s NaN hodnotami: {(z_min, z_max)}")
+        try:
+            # Převod na float pokud by hodnoty byly string
+            if isinstance(z_min, str):
+                z_min = float(z_min.replace(',', '.'))
+            if isinstance(z_max, str):
+                z_max = float(z_max.replace(',', '.'))
+                
+            # Kontroly platnosti zóny
+            if np.isnan(z_min) or np.isnan(z_max):
+                logger.warning(f"Ignoruji zónu s NaN hodnotami: {(z_min, z_max)}")
+                continue
+            if z_min < 0 or z_max < 0:
+                logger.warning(f"Ignoruji zónu se zápornými hodnotami: {(z_min, z_max)}")
+                continue
+            if z_min > z_max:
+                logger.warning(f"Ignoruji zónu s min > max: {(z_min, z_max)}")
+                continue
+            
+            # Pro různé kryptoměny budou různé cenové rozsahy, proto
+            # odstraníme specifickou kontrolu pro BTC a pouze zajistíme, aby byl rozsah rozumný
+            if z_max > z_min * 10:
+                logger.warning(f"Ignoruji zónu s příliš velkým rozsahem: {(z_min, z_max)}")
+                continue
+                
+            valid_zones.append((z_min, z_max))
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Chyba při zpracování zóny {(z_min, z_max)}: {str(e)}")
             continue
-        if z_min < 0 or z_max < 0:
-            logger.warning(f"Ignoruji zónu se zápornými hodnotami: {(z_min, z_max)}")
-            continue
-        if z_min > z_max:
-            logger.warning(f"Ignoruji zónu s min > max: {(z_min, z_max)}")
-            continue
-        if z_min < 1000 or z_max > 200000:  # Základní kontrola rozsahu pro BTC
-            logger.warning(f"Ignoruji zónu mimo realistický rozsah pro BTC: {(z_min, z_max)}")
-            continue
-        valid_zones.append((z_min, z_max))
 
     # Omezíme na maximálně 2 zóny
     if len(valid_zones) > 2:
@@ -200,8 +235,8 @@ def draw_resistance_zones(ax, zones, start_date, colors):
             # Pokud je to první zóna, rozšíříme osu y
             if i == 0:
                 logger.info(f"Rozšiřuji y-osu pro resistenční zónu: {(r_min, r_max)}")
-                new_y_min = min(y_min, r_min * 0.9)  # Přidáme 10% prostoru pod zónou
-                new_y_max = max(y_max, r_max * 1.1)  # Přidáme 10% prostoru nad zónou
+                new_y_min = min(y_min, r_min * 0.95)  # Přidáme 5% prostoru pod zónou
+                new_y_max = max(y_max, r_max * 1.05)  # Přidáme 5% prostoru nad zónou
                 ax.set_ylim(new_y_min, new_y_max)
             else:
                 continue
@@ -227,16 +262,20 @@ def draw_resistance_zones(ax, zones, start_date, colors):
         # Přidání popisku s kompletními informacemi o zóně
         mid_point = (r_min + r_max) / 2
 
-        # Zaokrouhlení hodnot na celá čísla
-        r_min_int = int(round(r_min))
-        r_max_int = int(round(r_max))
+        # Zaokrouhlení hodnot na celá čísla nebo na 1 desetinné místo pro menší hodnoty
+        if r_min >= 100:
+            r_min_formatted = int(round(r_min))
+            r_max_formatted = int(round(r_max))
+        else:
+            r_min_formatted = round(r_min, 1)
+            r_max_formatted = round(r_max, 1)
 
         # Vytvoření popisku s kompletními informacemi o zóně - jednodušší označení
-        label_text = f"R{i+1}: {r_min_int}-{r_max_int}"
+        label_text = f"R{i+1}: {r_min_formatted}-{r_max_formatted}"
 
-        # Přidání popisku v levé části grafu (v zóně)
+        # Přidání popisku v pravé části grafu (daleko od legendy)
         ax.text(
-            xlim[0] + xrange * 0.02,  # 2% od levého okraje
+            xlim[0] + xrange * 0.85,  # 85% od levého okraje (blízko pravého okraje)
             mid_point,
             label_text,
             color='white',
@@ -247,7 +286,8 @@ def draw_resistance_zones(ax, zones, start_date, colors):
                 alpha=0.7,
                 boxstyle='round,pad=0.3'
             ),
-            zorder=4
+            zorder=4,
+            horizontalalignment='right'  # Zarovnání doprava
         )
 
         zone_added = True

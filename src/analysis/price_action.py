@@ -140,9 +140,14 @@ Aktuální cena: {latest_price:.2f}
 
 ## 1. 📊 KRÁTKODOBÝ TREND A KONTEXT (4h)
 - Popište aktuální strukturu trhu (vyšší high/low, nižší high/low)
-- Klíčové úrovně podpory a rezistence (přesně definované jako rozsah cen, např. 93400-93500)
 - Objemový profil (kde se koncentruje nejvíce objemu)
 - Pozice v rámci vyššího trendu
+
+### HLAVNÍ SUPPORTNÍ ZÓNY:
+- (Uveďte 2-3 klíčové supportní zóny, každou na nový řádek ve formátu "min-max")
+
+### HLAVNÍ RESISTENČNÍ ZÓNY:
+- (Uveďte 2-3 klíčové resistenční zóny, každou na nový řádek ve formátu "min-max")
 
 ## 2. 🔍 INTRADAY PŘÍLEŽITOSTI (30m)
 - Aktuální situace v 30-minutovém timeframe
@@ -164,6 +169,7 @@ Aktuální cena: {latest_price:.2f}
 DŮLEŽITÉ:
 - KONKRÉTNÍ informace, žádný vágní text
 - Přehledné a stručné odrážky
+- DODRŽUJTE přesný formát pro supportní a resistenční zóny jako "min-max" (např. "85721-85532")
 - NEVKLÁDEJTE sekce, pro které nemáte data
 - NEZAHRNUJTE závěrečné shrnutí ani varování na konci analýzy"""
 
@@ -180,7 +186,6 @@ DŮLEŽITÉ:
             support_zones = self.extract_zones_from_analysis(analysis, "support")
             resistance_zones = self.extract_zones_from_analysis(analysis, "resistance")
     
-            # Pro intraday nepotřebujeme scénáře, ale používáme vždy podpory a resistence
             return analysis, support_zones, resistance_zones
     
         except Exception as e:
@@ -239,28 +244,36 @@ Aktuální cena: {latest_price:.2f}
 {''.join(timeframe_data)}
 
 ## 1. 📊 DLOUHODOBÝ TREND (1W/1D)
-- Hlavní resistenční zóny (min. 4 významné zóny nad aktuální cenou, definované jako rozsah cen, např. 89400-89600)
-- Hlavní supportní zóny (min. 4 významné zóny pod aktuální cenou, definované jako rozsah cen, např. 86000-86200)
-- Fair Value Gaps (FVG) s přesnými úrovněmi cen (pokud existují)
-- Order Blocks (OB) s přesnými úrovněmi cen (pokud existují)
 - Fázová analýza trhu (akumulace/distribuce, trendové/nárazové pohyby)
 - Klíčové weekly/daily uzávěry
+- Fair Value Gaps (FVG) s přesnými úrovněmi cen (pokud existují)
+- Order Blocks (OB) s přesnými úrovněmi cen (pokud existují)
+
+### HLAVNÍ SUPPORTNÍ ZÓNY:
+- (Uveďte 3-4 supportní zóny pod aktuální cenou, každou na nový řádek ve formátu "min-max")
+
+### HLAVNÍ RESISTENČNÍ ZÓNY:
+- (Uveďte 3-4 resistenční zóny nad aktuální cenou, každou na nový řádek ve formátu "min-max")
 
 ## 2. 🔍 STŘEDNĚDOBÝ KONTEXT (4H)
 - Pozice v rámci vyššího trendu
 - Významné cenové nerovnováhy (FVG) (pokud existují)
 - Order Blocks na 4H timeframu (pokud existují)
 - Objemové klastry
-- Hlavní supportní a resistenční zóny
 
 ## 3. 💡 MOŽNÉ SCÉNÁŘE DALŠÍHO VÝVOJE
-- Bullish scénář (popište podmínky, spouštěče a potenciální cílové úrovně)
-  - DŮLEŽITÉ: Uveďte konkrétní cenové cíle ve formátu čísla (např. 92000), ne jako rozsah
-  - Popište, jak by cena mohla narážet na klíčové rezistence během své cesty nahoru
-- Bearish scénář (popište podmínky, spouštěče a potenciální cílové úrovně) 
-  - DŮLEŽITÉ: Uveďte konkrétní cenové cíle ve formátu čísla (např. 84000), ne jako rozsah
-  - Popište, jak by cena mohla narážet na klíčové supporty během své cesty dolů
-- Neutrální scénář (konsolidace nebo range bound chování)
+
+### BULLISH SCÉNÁŘ:
+- Podmínky a spouštěče
+- Cílová úroveň: [PŘESNÁ HODNOTA]
+
+### BEARISH SCÉNÁŘ:
+- Podmínky a spouštěče
+- Cílová úroveň: [PŘESNÁ HODNOTA]
+
+### NEUTRÁLNÍ SCÉNÁŘ:
+- Podmínky a pravděpodobnost konsolidace
+- Očekávaný rozsah: [MIN]-[MAX]
 
 ## 4. ⚠️ VÝZNAMNÉ ÚROVNĚ K SLEDOVÁNÍ
 - Důležité swingové high/low
@@ -269,6 +282,7 @@ Aktuální cena: {latest_price:.2f}
 
 DŮLEŽITÉ:
 - Support MUSÍ být vždy pod aktuální cenou ({latest_price:.2f}), resistance vždy nad aktuální cenou
+- DODRŽUJTE přesný formát pro supportní a resistenční zóny jako "min-max" (např. "85721-85532")
 - Všechny supportní a resistenční zóny musí být ve správném pořadí (resistance nad aktuální cenou, support pod ní)
 - NEZAHRNUJTE žádné závěrečné shrnutí ani varování na konci analýzy
 - NEPIŠTE fráze jako "Tato analýza poskytuje přehled" nebo podobné shrnující věty
@@ -311,210 +325,159 @@ DŮLEŽITÉ:
         """
         scenarios = []
         
-        # Hledat sekci "MOŽNÉ SCÉNÁŘE DALŠÍHO VÝVOJE" nebo podobnou
-        scenario_section = re.search(r'(MOŽNÉ SCÉNÁŘE|SCÉNÁŘE|SCENÁŘE|VÝVOJE)(.*?)(##|\Z)', 
-                                    analysis, re.DOTALL | re.IGNORECASE)
-        
-        if scenario_section:
-            scenario_text = scenario_section.group(2)
-            
-            # Hledání bullish scénáře a ceny - přesnější pattern zaměřený na číselné cíle
-            bullish_target = None
-            bullish_section = re.search(r'[Bb]ullish.*?(\d{4,6})', scenario_text)
-            if bullish_section:
+        # Hledání bullish scénáře
+        bullish_section = re.search(r"### BULLISH SCÉNÁŘ:(.*?)###", analysis, re.DOTALL)
+        if bullish_section:
+            # Hledání cílové úrovně
+            target_match = re.search(r"Cílová úroveň:\s*\[?(\d+(?:[.,]\d+)?)\]?", bullish_section.group(1))
+            if target_match:
                 try:
-                    bullish_target = float(bullish_section.group(1).replace(',', '.'))
-                    if bullish_target > current_price * 1.005:  # Musí být aspoň 0.5% nad aktuální cenou
+                    bullish_target = float(target_match.group(1).replace(',', '.'))
+                    if bullish_target > current_price:
+                        scenarios.append(('bullish', bullish_target))
+                        logger.info(f"Extrahován bullish scénář s cílem: {bullish_target}")
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Chyba při zpracování bullish scénáře: {str(e)}")
+        
+        # Hledání bearish scénáře
+        bearish_section = re.search(r"### BEARISH SCÉNÁŘ:(.*?)###", analysis, re.DOTALL)
+        if bearish_section:
+            # Hledání cílové úrovně
+            target_match = re.search(r"Cílová úroveň:\s*\[?(\d+(?:[.,]\d+)?)\]?", bearish_section.group(1))
+            if target_match:
+                try:
+                    bearish_target = float(target_match.group(1).replace(',', '.'))
+                    if bearish_target < current_price:
+                        scenarios.append(('bearish', bearish_target))
+                        logger.info(f"Extrahován bearish scénář s cílem: {bearish_target}")
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Chyba při zpracování bearish scénáře: {str(e)}")
+        
+        # Hledání neutrálního scénáře
+        neutral_section = re.search(r"### NEUTRÁLNÍ SCÉNÁŘ:(.*?)(?:##|\Z)", analysis, re.DOTALL)
+        if neutral_section:
+            # Hledání očekávaného rozsahu
+            range_match = re.search(r"Očekávaný rozsah:\s*\[?(\d+(?:[.,]\d+)?)\]?-\[?(\d+(?:[.,]\d+)?)\]?", neutral_section.group(1))
+            if range_match:
+                try:
+                    lower_bound = float(range_match.group(1).replace(',', '.'))
+                    upper_bound = float(range_match.group(2).replace(',', '.'))
+                    if lower_bound < upper_bound:
+                        scenarios.append(('neutral', (lower_bound, upper_bound)))
+                        logger.info(f"Extrahován neutrální scénář s rozsahem: {lower_bound}-{upper_bound}")
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Chyba při zpracování neutrálního scénáře: {str(e)}")
+        
+        # Pokud nejsou nalezeny žádné scénáře, použijeme fallback metodu
+        if not scenarios:
+            logger.warning("Nebyly nalezeny žádné strukturované scénáře, zkouším fallback metodu")
+            
+            # Hledání zmínek o možných cílech
+            bullish_matches = re.findall(r"[Bb]ullish.*?cíl.*?(\d{4,6}(?:[.,]\d+)?)", analysis)
+            bearish_matches = re.findall(r"[Bb]earish.*?cíl.*?(\d{4,6}(?:[.,]\d+)?)", analysis)
+            
+            if bullish_matches:
+                try:
+                    bullish_target = float(bullish_matches[0].replace(',', '.'))
+                    if bullish_target > current_price * 1.005:  # Alespoň 0.5% nad aktuální cenou
                         scenarios.append(('bullish', bullish_target))
                 except (ValueError, IndexError):
                     pass
-            
-            # Pokud nebyl nalezen konkrétní cíl, hledej i v jiných formátech
-            if not bullish_target:
-                bullish_patterns = [
-                    r"[Bb]ullish.*?(\d{4,6})",
-                    r"[Vv]zhůru.*?(\d{4,6})",
-                    r"[Rr]ůst.*?(\d{4,6})",
-                    r"[Cc]íl.*?(\d{4,6})"
-                ]
-                
-                for pattern in bullish_patterns:
-                    matches = re.findall(pattern, scenario_text)
-                    for match in matches:
-                        try:
-                            price = float(match.replace(',', '.'))
-                            if price > current_price * 1.005:  # Musí být aspoň 0.5% nad aktuální cenou
-                                scenarios.append(('bullish', price))
-                                break
-                        except (ValueError, IndexError):
-                            continue
-                    if len(scenarios) > 0 and scenarios[-1][0] == 'bullish':
-                        break
-            
-            # Hledání bearish scénáře a ceny - přesnější pattern zaměřený na číselné cíle
-            bearish_target = None
-            bearish_section = re.search(r'[Bb]earish.*?(\d{4,6})', scenario_text)
-            if bearish_section:
+                    
+            if bearish_matches:
                 try:
-                    bearish_target = float(bearish_section.group(1).replace(',', '.'))
-                    if bearish_target < current_price * 0.995:  # Musí být aspoň 0.5% pod aktuální cenou
+                    bearish_target = float(bearish_matches[0].replace(',', '.'))
+                    if bearish_target < current_price * 0.995:  # Alespoň 0.5% pod aktuální cenou
                         scenarios.append(('bearish', bearish_target))
                 except (ValueError, IndexError):
                     pass
-            
-            # Pokud nebyl nalezen konkrétní cíl, hledej i v jiných formátech
-            if not bearish_target:
-                bearish_patterns = [
-                    r"[Bb]earish.*?(\d{4,6})",
-                    r"[Pp]okles.*?(\d{4,6})",
-                    r"[Pp]ád.*?(\d{4,6})",
-                    r"[Dd]olů.*?(\d{4,6})"
-                ]
-                
-                for pattern in bearish_patterns:
-                    matches = re.findall(pattern, scenario_text)
-                    for match in matches:
-                        try:
-                            price = float(match.replace(',', '.'))
-                            if price < current_price * 0.995:  # Musí být aspoň 0.5% pod aktuální cenou
-                                scenarios.append(('bearish', price))
-                                break
-                        except (ValueError, IndexError):
-                            continue
-                    if len(scenarios) > 0 and scenarios[-1][0] == 'bearish':
-                        break
         
-        # Pokud jsme nenašli žádné scénáře, zkusíme prohledat celý text
-        if not scenarios:
-            # Obecný pattern pro nalezení cenových hodnot
-            price_pattern = r'\b(\d{4,6})\b'
-            prices = re.findall(price_pattern, analysis)
-            
-            prices = [float(p) for p in prices if p.isdigit()]
-            prices = sorted(list(set(prices)))  # Deduplikace a seřazení
-            
-            # Identifikace bullish a bearish cílů na základě aktuální ceny
-            bullish_target = None
-            bearish_target = None
-            
-            for price in prices:
-                if price > current_price * 1.05:  # 5% nad aktuální cenou
-                    if not bullish_target or price > bullish_target:
-                        bullish_target = price
-                elif price < current_price * 0.95:  # 5% pod aktuální cenou
-                    if not bearish_target or price < bearish_target:
-                        bearish_target = price
-            
-            if bullish_target:
-                scenarios.append(('bullish', bullish_target))
-            if bearish_target:
-                scenarios.append(('bearish', bearish_target))
-        
-        # Logování nalezených scénářů pro ladění
-        logger.info(f"Nalezené scénáře: {scenarios}")
-        
+        logger.info(f"Extrahované scénáře: {scenarios}")
         return scenarios
 
     def extract_zones_from_analysis(self, analysis, zone_type):
         """
         Extrahuje zóny supportů nebo resistancí z textu analýzy.
-        Vybere pouze nejdůležitější zóny pro lepší přehlednost.
-    
+        
         Args:
             analysis (str): Text analýzy
             zone_type (str): Typ zóny ('support' nebo 'resistance')
-    
+        
         Returns:
             list: Seznam zón ve formátu [(min1, max1), (min2, max2), ...]
         """
         zones = []
-
-        # Různé možné variace názvů v textu
+        
+        # Určení správného nadpisu sekce podle typu zóny
         if zone_type.lower() == "support":
-            patterns = [
-                r"[Ss]upportní zón[ay]:\s*([0-9,.-]+)-([0-9,.-]+)",
-                r"[Ss]upport[ní]{0,2} zón[ay]?.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Ss]upport.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Bb]ullish OB.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Bb]ullish FVG.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Pp]odpora:?\s*([0-9,.-]+)-([0-9,.-]+)",
-                r"[Pp]odpora:?\s*(\d+\.?\d*)-(\d+\.?\d*)"
-            ]
-        else:  # resistance
-            patterns = [
-                r"[Rr]esistenční zón[ay]:\s*([0-9,.-]+)-([0-9,.-]+)",
-                r"[Rr]esisten[cč][en]í zón[ay]?.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Rr]esisten[cč][en].*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Bb]earish OB.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Bb]earish FVG.*?([0-9,.-]+)-([0-9,.-]+)",
-                r"[Rr]ezistence:?\s*([0-9,.-]+)-([0-9,.-]+)",
-                r"[Rr]ezistence:?\s*(\d+\.?\d*)-(\d+\.?\d*)"
-            ]
-
-        for pattern in patterns:
-            matches = re.findall(pattern, analysis)
-            for match in matches:
-                try:
-                    min_value = float(match[0].replace(',', '.'))
-                    max_value = float(match[1].replace(',', '.'))
-                    zones.append((min_value, max_value))
-                except (ValueError, IndexError):
-                    continue
-
-        # Získání sekcí analýzy pro prioritizaci zón
-        hlavni_zony_section = None
-        if zone_type.lower() == "support":
-            hlavni_section_pattern = r"Hlavní supportní zón[^:]*:(.*?)(?=\n\s*-\s*[^s]|\Z)"
-            hlavni_zony_section = re.search(hlavni_section_pattern, analysis, re.IGNORECASE | re.DOTALL)
+            section_header = "### HLAVNÍ SUPPORTNÍ ZÓNY:"
         else:
-            hlavni_section_pattern = r"Hlavní resistenční zón[^:]*:(.*?)(?=\n\s*-\s*[^r]|\Z)"
-            hlavni_zony_section = re.search(hlavni_section_pattern, analysis, re.IGNORECASE | re.DOTALL)
-
-        # Pokud máme hlavní sekci, extrahujeme první 2 zóny
-        prioritized_zones = []
-        if hlavni_zony_section:
-            section_text = hlavni_zony_section.group(1)
-            bullet_points = re.findall(r"\s*-\s*([^\n]+)", section_text)
+            section_header = "### HLAVNÍ RESISTENČNÍ ZÓNY:"
         
-            for i, point in enumerate(bullet_points):
-                # Extrahujeme první 2 zóny z hlavní sekce
-                if i >= 2:
-                    break
-                
-                range_match = re.search(r"(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)", point)
-                if range_match:
-                    try:
-                        min_val = float(range_match.group(1).replace(',', '.'))
-                        max_val = float(range_match.group(2).replace(',', '.'))
-                        # Ověření, zda hodnoty mají smysl pro cenu
-                        if min_val > 1000 and max_val > 1000 and min_val < max_val:
-                            prioritized_zones.append((min_val, max_val))
-                    except (ValueError, IndexError):
-                        continue
-
-        # Pokud jsme našli prioritizované zóny, použijeme je
-        if prioritized_zones:
-            return prioritized_zones
-
-        # Omezení počtu zón pro lepší přehlednost - zobrazit pouze 2 nejdůležitější
-        # Podpory seřadíme vzestupně, rezistence sestupně (důležitější jsou blíže k aktuální ceně)
-        if zones:
-            # Deduplikace zón
-            unique_zones = list(set(zones))
+        # Hledání sekce se zónami
+        section_pattern = f"{re.escape(section_header)}(.*?)(?:###|\Z)"
+        section_match = re.search(section_pattern, analysis, re.DOTALL)
+        
+        if section_match:
+            section_text = section_match.group(1).strip()
+            logger.info(f"Nalezena sekce {zone_type} zón: {section_text}")
             
-            # Seřazení podle relevance k aktuální ceně
+            # Hledání všech odrážek s cenovými rozsahy
+            bullet_points = re.findall(r"- (\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)", section_text)
+            
+            for min_price, max_price in bullet_points:
+                try:
+                    min_value = float(min_price.replace(',', '.'))
+                    max_value = float(max_price.replace(',', '.'))
+                    
+                    # Validace hodnot
+                    if min_value < max_value:
+                        zones.append((min_value, max_value))
+                        logger.info(f"Extrahována {zone_type} zóna: {min_value}-{max_value}")
+                    else:
+                        logger.warning(f"Ignorována neplatná zóna s min > max: {min_value}-{max_value}")
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Chyba při zpracování {zone_type} zóny: {str(e)}")
+                    continue
+        else:
+            logger.warning(f"Sekce {section_header} nebyla nalezena v textu")
+            
+            # Fallback - zkusíme hledat v textu podle obecnějších vzorů
             if zone_type.lower() == "support":
-                # Pro podpory - seřadit sestupně (nejvyšší první - blíže aktuální ceně)
-                unique_zones.sort(key=lambda x: x[0], reverse=True)
+                patterns = [
+                    r"[Ss]upportní zón[ay]?:?\s*(\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)",
+                    r"[Pp]odpora:?\s*(\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)"
+                ]
             else:
-                # Pro rezistence - seřadit vzestupně (nejnižší první - blíže aktuální ceně)
-                unique_zones.sort(key=lambda x: x[0])
+                patterns = [
+                    r"[Rr]esistenční zón[ay]?:?\s*(\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)",
+                    r"[Rr]ezistence:?\s*(\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)"
+                ]
+            
+            for pattern in patterns:
+                matches = re.findall(pattern, analysis)
+                for min_price, max_price in matches:
+                    try:
+                        min_value = float(min_price.replace(',', '.'))
+                        max_value = float(max_price.replace(',', '.'))
+                        
+                        # Validace hodnot
+                        if min_value < max_value:
+                            zones.append((min_value, max_value))
+                            logger.info(f"Extrahována {zone_type} zóna fallbackem: {min_value}-{max_value}")
+                        else:
+                            logger.warning(f"Ignorována neplatná zóna s min > max: {min_value}-{max_value}")
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"Chyba při zpracování {zone_type} zóny: {str(e)}")
+                        continue
         
-            # Vybrat max 2 nejrelevantnější zóny
-            return unique_zones[:2]
-
-        # Pokud nenajdeme žádné zóny pomocí regulárních výrazů, vracíme prázdný seznam
-        return []
+        # Deduplikace zón
+        unique_zones = []
+        for zone in zones:
+            if zone not in unique_zones:
+                unique_zones.append(zone)
+        
+        return unique_zones
 
     def process_data(self, klines_data):
         """
