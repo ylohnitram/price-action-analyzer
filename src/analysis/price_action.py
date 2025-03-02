@@ -144,10 +144,12 @@ Aktuální cena: {latest_price:.2f}
 - Pozice v rámci vyššího trendu
 
 ### HLAVNÍ SUPPORTNÍ ZÓNY:
-- (Uveďte 2-3 klíčové supportní zóny, každou na nový řádek ve formátu "min-max")
+- (Uveďte 1-2 klíčové supportní zóny POUZE POD aktuální cenou {latest_price:.2f}, každou na nový řádek ve formátu "min-max")
+- Příklad správného formátu: "78250-81000" (vždy musí být min < max a max < {latest_price:.2f})
 
 ### HLAVNÍ RESISTENČNÍ ZÓNY:
-- (Uveďte 2-3 klíčové resistenční zóny, každou na nový řádek ve formátu "min-max")
+- (Uveďte 1-2 klíčové resistenční zóny POUZE NAD aktuální cenou {latest_price:.2f}, každou na nový řádek ve formátu "min-max")
+- Příklad správného formátu: "90000-92000" (vždy musí být min > {latest_price:.2f} a min < max)
 
 ## 2. 🔍 INTRADAY PŘÍLEŽITOSTI (30m)
 - Aktuální situace v 30-minutovém timeframe
@@ -167,6 +169,7 @@ Aktuální cena: {latest_price:.2f}
 - Časová platnost setupu
 
 DŮLEŽITÉ:
+- SUPPORTNÍ ZÓNY MUSÍ BÝT VŽDY POD AKTUÁLNÍ CENOU, RESISTENČNÍ ZÓNY VŽDY NAD! Žádná supportní zóna nemůže být nad resistenční zónou!
 - KONKRÉTNÍ informace, žádný vágní text
 - Přehledné a stručné odrážky
 - DODRŽUJTE přesný formát pro supportní a resistenční zóny jako "min-max" (např. "85721-85532")
@@ -250,10 +253,12 @@ Aktuální cena: {latest_price:.2f}
 - Order Blocks (OB) s přesnými úrovněmi cen (pokud existují)
 
 ### HLAVNÍ SUPPORTNÍ ZÓNY:
-- (Uveďte 3-4 supportní zóny pod aktuální cenou, každou na nový řádek ve formátu "min-max")
+- (Uveďte 1-2 supportní zóny POUZE POD aktuální cenou {latest_price:.2f}, každou na nový řádek ve formátu "min-max")
+- Příklad správného formátu: "78250-81000" (vždy musí být min < max a max < {latest_price:.2f})
 
 ### HLAVNÍ RESISTENČNÍ ZÓNY:
-- (Uveďte 3-4 resistenční zóny nad aktuální cenou, každou na nový řádek ve formátu "min-max")
+- (Uveďte 1-2 resistenční zóny POUZE NAD aktuální cenou {latest_price:.2f}, každou na nový řádek ve formátu "min-max")
+- Příklad správného formátu: "90000-92000" (vždy musí být min > {latest_price:.2f} a min < max)
 
 ## 2. 🔍 STŘEDNĚDOBÝ KONTEXT (4H)
 - Pozice v rámci vyššího trendu
@@ -265,15 +270,15 @@ Aktuální cena: {latest_price:.2f}
 
 ### BULLISH SCÉNÁŘ:
 - Podmínky a spouštěče
-- Cílová úroveň: [PŘESNÁ HODNOTA]
+- Cílová úroveň: [PŘESNÁ HODNOTA > {latest_price:.2f}]
 
 ### BEARISH SCÉNÁŘ:
 - Podmínky a spouštěče
-- Cílová úroveň: [PŘESNÁ HODNOTA]
+- Cílová úroveň: [PŘESNÁ HODNOTA < {latest_price:.2f}]
 
 ### NEUTRÁLNÍ SCÉNÁŘ:
 - Podmínky a pravděpodobnost konsolidace
-- Očekávaný rozsah: [MIN]-[MAX]
+- Očekávaný rozsah: [MIN]-[MAX] (musí zahrnovat aktuální cenu {latest_price:.2f})
 
 ## 4. ⚠️ VÝZNAMNÉ ÚROVNĚ K SLEDOVÁNÍ
 - Důležité swingové high/low
@@ -281,9 +286,9 @@ Aktuální cena: {latest_price:.2f}
 - Nezahrnujte sekce, pro které nemáte dostatek dat - pokud nemáte pivot pointy, prostě je nevyjmenovávejte
 
 DŮLEŽITÉ:
-- Support MUSÍ být vždy pod aktuální cenou ({latest_price:.2f}), resistance vždy nad aktuální cenou
+- SUPPORTNÍ ZÓNY MUSÍ BÝT VŽDY POD AKTUÁLNÍ CENOU, RESISTENČNÍ ZÓNY VŽDY NAD! Žádná supportní zóna nemůže být nad resistenční zónou!
 - DODRŽUJTE přesný formát pro supportní a resistenční zóny jako "min-max" (např. "85721-85532")
-- Všechny supportní a resistenční zóny musí být ve správném pořadí (resistance nad aktuální cenou, support pod ní)
+- Všechny supportní a resistenční zóny musí být ve správném pořadí vůči aktuální ceně
 - NEZAHRNUJTE žádné závěrečné shrnutí ani varování na konci analýzy
 - NEPIŠTE fráze jako "Tato analýza poskytuje přehled" nebo podobné shrnující věty
 - NEVKLÁDEJTE sekce, pro které nemáte data - pokud něco nelze určit, sekci vynechte
@@ -395,54 +400,68 @@ DŮLEŽITÉ:
         logger.info(f"Extrahované scénáře: {scenarios}")
         return scenarios
 
-    def extract_zones_from_analysis(self, analysis, zone_type):
+    def extract_zones_from_analysis(self, analysis, zone_type, current_price=None):
         """
         Extrahuje zóny supportů nebo resistancí z textu analýzy.
-        
+    
         Args:
             analysis (str): Text analýzy
             zone_type (str): Typ zóny ('support' nebo 'resistance')
+            current_price (float, optional): Aktuální cena pro validaci zón
         
         Returns:
             list: Seznam zón ve formátu [(min1, max1), (min2, max2), ...]
         """
         zones = []
-        
+    
         # Určení správného nadpisu sekce podle typu zóny
         if zone_type.lower() == "support":
             section_header = "### HLAVNÍ SUPPORTNÍ ZÓNY:"
         else:
             section_header = "### HLAVNÍ RESISTENČNÍ ZÓNY:"
-        
+    
         # Hledání sekce se zónami
         section_pattern = f"{re.escape(section_header)}(.*?)(?:###|\Z)"
         section_match = re.search(section_pattern, analysis, re.DOTALL)
-        
+    
         if section_match:
             section_text = section_match.group(1).strip()
             logger.info(f"Nalezena sekce {zone_type} zón: {section_text}")
-            
+        
             # Hledání všech odrážek s cenovými rozsahy
             bullet_points = re.findall(r"- (\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)", section_text)
-            
+        
             for min_price, max_price in bullet_points:
                 try:
                     min_value = float(min_price.replace(',', '.'))
                     max_value = float(max_price.replace(',', '.'))
-                    
-                    # Validace hodnot
-                    if min_value < max_value:
-                        zones.append((min_value, max_value))
-                        logger.info(f"Extrahována {zone_type} zóna: {min_value}-{max_value}")
-                    else:
-                        logger.warning(f"Ignorována neplatná zóna s min > max: {min_value}-{max_value}")
+                
+                    # Základní validace hodnot
+                    if min_value >= max_value:
+                        logger.warning(f"Ignorována neplatná zóna s min >= max: {min_value}-{max_value}")
+                        continue
+                
+                    # Pokud je poskytnuta aktuální cena, validujeme zóny proti ní
+                    if current_price is not None:
+                        if zone_type.lower() == "support" and max_value >= current_price:
+                            logger.warning(f"Ignorována supportní zóna nad nebo na aktuální ceně: {min_value}-{max_value} (aktuální: {current_price})")
+                            continue
+                        elif zone_type.lower() == "resistance" and min_value <= current_price:
+                            logger.warning(f"Ignorována resistenční zóna pod nebo na aktuální ceně: {min_value}-{max_value} (aktuální: {current_price})")
+                            continue
+                
+                    zones.append((min_value, max_value))
+                    logger.info(f"Extrahována {zone_type} zóna: {min_value}-{max_value}")
                 except (ValueError, IndexError) as e:
                     logger.warning(f"Chyba při zpracování {zone_type} zóny: {str(e)}")
                     continue
         else:
             logger.warning(f"Sekce {section_header} nebyla nalezena v textu")
             
-            # Fallback - zkusíme hledat v textu podle obecnějších vzorů
+        # Fallback - zkusíme hledat v textu podle obecnějších vzorů
+        if not zones:
+            logger.warning(f"Použití fallback metody pro detekci {zone_type} zón")
+        
             if zone_type.lower() == "support":
                 patterns = [
                     r"[Ss]upportní zón[ay]?:?\s*(\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)",
@@ -453,30 +472,49 @@ DŮLEŽITÉ:
                     r"[Rr]esistenční zón[ay]?:?\s*(\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)",
                     r"[Rr]ezistence:?\s*(\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)"
                 ]
-            
+        
             for pattern in patterns:
                 matches = re.findall(pattern, analysis)
                 for min_price, max_price in matches:
                     try:
                         min_value = float(min_price.replace(',', '.'))
                         max_value = float(max_price.replace(',', '.'))
-                        
-                        # Validace hodnot
-                        if min_value < max_value:
-                            zones.append((min_value, max_value))
-                            logger.info(f"Extrahována {zone_type} zóna fallbackem: {min_value}-{max_value}")
-                        else:
-                            logger.warning(f"Ignorována neplatná zóna s min > max: {min_value}-{max_value}")
+                    
+                        # Základní validace hodnot
+                        if min_value >= max_value:
+                            logger.warning(f"Ignorována neplatná zóna s min >= max: {min_value}-{max_value}")
+                            continue
+                    
+                        # Pokud je poskytnuta aktuální cena, validujeme zóny proti ní
+                        if current_price is not None:
+                            if zone_type.lower() == "support" and max_value >= current_price:
+                                logger.warning(f"Ignorována supportní zóna nad nebo na aktuální ceně: {min_value}-{max_value} (aktuální: {current_price})")
+                                continue
+                            elif zone_type.lower() == "resistance" and min_value <= current_price:
+                                logger.warning(f"Ignorována resistenční zóna pod nebo na aktuální ceně: {min_value}-{max_value} (aktuální: {current_price})")
+                                continue
+                    
+                        zones.append((min_value, max_value))
+                        logger.info(f"Extrahována {zone_type} zóna fallbackem: {min_value}-{max_value}")
                     except (ValueError, IndexError) as e:
                         logger.warning(f"Chyba při zpracování {zone_type} zóny: {str(e)}")
                         continue
-        
+    
         # Deduplikace zón
         unique_zones = []
         for zone in zones:
             if zone not in unique_zones:
                 unique_zones.append(zone)
-        
+    
+        # Seřazení zón podle relevance k aktuální ceně
+        if current_price is not None:
+            if zone_type.lower() == "support":
+                # Seřadit supportní zóny sestupně (nejvyšší první - blíže aktuální ceně)
+                unique_zones.sort(key=lambda x: x[0], reverse=True)
+            else:
+                # Seřadit resistenční zóny vzestupně (nejnižší první - blíže aktuální ceně)
+                unique_zones.sort(key=lambda x: x[0])
+    
         return unique_zones
 
     def process_data(self, klines_data):
