@@ -3,17 +3,21 @@
 import time
 import requests
 import os
+import random
+import logging
 from tqdm import tqdm
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import urllib3
-import random
+import socket
 
 # Vypnout SSL varování
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+logger = logging.getLogger(__name__)
+
 class BinanceClient:
-    """Klient pro komunikaci s Binance API."""
+    """Klient pro komunikaci s Binance API s vylepšeným ošetřením chyb."""
     
     def __init__(self):
         self.session = self._create_session()
@@ -23,21 +27,48 @@ class BinanceClient:
             "https://api1.binance.com",
             "https://api2.binance.com",
             "https://api3.binance.com",
-            "https://api.binance.com"
+            "https://api.binance.com",
+            "https://api-gcp.binance.com",
+            "https://api-aws.binance.com",
+            "https://public.bnbstatic.com/api" # Záložní alternativa
         ]
         
-        # Alternativně můžeme použít Binance Futures API, které může být přístupné i při blokování hlavního API
+        # Alternativní Binance Futures API
         self.futures_domains = [
             "https://fapi.binance.com",
-            "https://dapi.binance.com"
+            "https://dapi.binance.com",
+            "https://fapi1.binance.com",
+            "https://fapi2.binance.com"
+        ]
+        
+        # Binance Spot API domény pro různé regiony
+        self.regional_domains = [
+            "https://api.binance.us",     # US
+            "https://api.binance.je",     # Jersey
+            "https://api.binance.co.uk",  # UK
+            "https://api.binance.de",     # Germany
+            "https://api.binance.it",     # Italy
+            "https://api.binance.fr"      # France
         ]
         
         # Výchozí nastavení - začínáme se standardním API
         self.base_url = self.api_domains[0]
         self.use_futures_api = False
+        self.tried_domains = set()
+        
+        # Timeout konfigurace - prodloužíme timeout
+        self.connect_timeout = 15  # Timeout pro navázání spojení
+        self.read_timeout = 60     # Timeout pro čtení dat
+        
+        # Náhodné rozložení pokusů
+        self.retry_min_wait = 1    # Minimální doba čekání mezi pokusy v sekundách
+        self.retry_max_wait = 10   # Maximální doba čekání mezi pokusy v sekundách
+        self.max_consecutive_errors = 5  # Maximum po sobě jdoucích chyb
+        
+        logger.info(f"Binance klient inicializován s první API doménou: {self.base_url}")
         
     def _create_session(self):
-        """Vytvoří HTTP session s retry strategií a proxy podporou."""
+        """Vytvoří HTTP session s vylepšenou retry strategií a proxy podporou."""
         session = requests.Session()
         
         # Přidání proxy pro GitHub Actions
@@ -51,42 +82,72 @@ class BinanceClient:
             safe_proxy = proxy_url.replace('http://', '').replace('https://', '')
             if '@' in safe_proxy:
                 safe_proxy = safe_proxy.split('@')[1]
-            print(f"Používám proxy: {safe_proxy}")
-            
+            logger.info(f"Používám proxy: {safe_proxy}")
+        
+        # Vylepšená retry strategie
         retry_strategy = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
+            total=5,  # Zvýšení celkového počtu pokusů
+            backoff_factor=2,  # Exponenciální backoff faktor zvýšen
+            status_forcelist=[429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 525],
+            allowed_methods=["GET", "POST"],  # Povolené metody pro retry
+            respect_retry_after_header=True,  # Respektovat Retry-After hlavičku
+            # Pro HTTP/1.1 (defaultní) je výchozí počet redirection 30, pro HTTP/2 je 0.
+            # Zvýšíme redirect limit pro HTTP/2 pokud by byl použit
+            redirect=10
         )
+        
         adapter = HTTPAdapter(max_retries=retry_strategy)
         session.mount("http://", adapter)
         session.mount("https://", adapter)
+        
+        # Nastavení user-agent
+        default_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        session.headers.update(default_headers)
+        
         return session
 
+    def _get_next_domain(self):
+        """
+        Získá další doménu pro pokus, zajišťuje že projdeme všechny dostupné domény.
+        
+        Returns:
+            str: URL další domény k vyzkoušení
+        """
+        # Kombinace všech možných domén
+        all_domains = self.api_domains + self.futures_domains + self.regional_domains
+        
+        # Odstranění již vyzkoušených domén
+        available_domains = [d for d in all_domains if d not in self.tried_domains]
+        
+        # Pokud už jsme vyzkoušeli všechny domény, resetujeme seznam a začneme znovu
+        if not available_domains:
+            logger.warning("Všechny dostupné domény již byly vyzkoušeny, resetuji seznam")
+            self.tried_domains = set()
+            available_domains = all_domains
+        
+        # Vybereme náhodně z dostupných domén pro lepší rozložení
+        next_domain = random.choice(available_domains)
+        self.tried_domains.add(next_domain)
+        
+        # Aktualizujeme informaci o typu API
+        self.use_futures_api = any(f_domain in next_domain for f_domain in self.futures_domains)
+        
+        logger.info(f"Přepínám na novou doménu: {next_domain} (futures API: {self.use_futures_api})")
+        return next_domain
+
     def _try_next_domain(self):
-        """Zkusí další doménu, pokud je aktuální blokovaná."""
-        if not self.use_futures_api:
-            # Zkusíme nejprve další standardní API doménu
-            current_index = self.api_domains.index(self.base_url)
-            next_index = (current_index + 1) % len(self.api_domains)
-            self.base_url = self.api_domains[next_index]
-            print(f"Zkouším alternativní API doménu: {self.base_url}")
-            
-            # Pokud jsme prošli všechny API domény, přejdeme na Futures API
-            if next_index == 0:
-                self.use_futures_api = True
-                self.base_url = self.futures_domains[0]
-                print(f"Přepínám na Futures API: {self.base_url}")
-        else:
-            # Zkusíme další Futures API doménu
-            current_index = self.futures_domains.index(self.base_url)
-            next_index = (current_index + 1) % len(self.futures_domains)
-            self.base_url = self.futures_domains[next_index]
-            print(f"Zkouším alternativní Futures API doménu: {self.base_url}")
+        """Zkusí další doménu, pokud je aktuální blokovaná nebo nedostupná."""
+        self.base_url = self._get_next_domain()
+        # Přidáme malé zpoždění před použitím nové domény
+        jitter = random.uniform(0.5, 2.0)
+        time.sleep(jitter)
 
     def fetch_historical_data(self, symbol, interval, days, progress_callback=None):
         """
-        Stáhne historická OHLCV data z Binance pro jeden časový rámec.
+        Stáhne historická OHLCV data z Binance pro jeden časový rámec
+        s vylepšeným ošetřením chyb a automatickou změnou koncových bodů.
         
         Args:
             symbol (str): Obchodní symbol (např. 'BTCUSDT')
@@ -101,25 +162,30 @@ class BinanceClient:
         start_time = end_time - (days * 24 * 60 * 60 * 1000)
         
         all_klines = []
-        chunk_size = 6 * 60 * 60 * 1000  # 6 hodin v milisekundách
+        # Zmenšení velikosti chunků pro spolehlivější stahování
+        chunk_size = 3 * 60 * 60 * 1000  # 3 hodiny v milisekundách místo 6 hodin
         total_chunks = (end_time - start_time) // chunk_size + 1
         
         show_progress = progress_callback is None
         pbar = tqdm(total=total_chunks, desc=f"Stahování {symbol} {interval}", unit="chunk") if show_progress else None
         
         current_start = start_time
-        max_retries = 5  # Maximální počet pokusů s různými doménami
-        retries = 0
+        # Zvýšíme maximální počet chyb než se úplně vzdáme
+        max_total_retries = 20
+        total_retries = 0
+        consecutive_errors = 0
         
         while current_start < end_time:
             chunk_end = min(current_start + chunk_size, end_time)
             
             try:
-                klines = self.get_klines(
+                # Zkrácení retry intervalu pro jednotlivé chunky
+                klines = self._get_klines_with_retry(
                     symbol=symbol,
                     interval=interval,
                     start_time=current_start,
-                    end_time=chunk_end
+                    end_time=chunk_end,
+                    max_retries=3  # Méně pokusů pro jednotlivé chunky
                 )
                 
                 if klines:
@@ -133,37 +199,105 @@ class BinanceClient:
                 elif progress_callback:
                     progress_callback(len(all_klines))
                     
-                time.sleep(0.5)  # Předejití rate limitu
-                retries = 0  # Reset počtu pokusů po úspěšném stažení
+                # Reset počtu po sobě jdoucích chyb po úspěchu
+                consecutive_errors = 0
+                
+                # Přidání náhodného intervalu mezi požadavky pro snížení rizika rate limitů
+                jitter = random.uniform(self.retry_min_wait, self.retry_min_wait * 1.5)
+                time.sleep(jitter)
                 
             except Exception as e:
+                consecutive_errors += 1
+                total_retries += 1
                 error_msg = f"Chyba při stahování dat: {str(e)}"
+                
                 if show_progress:
                     tqdm.write(f"\n{error_msg}")
+                logger.warning(error_msg)
                 
-                # Zkusíme použít jinou doménu, pokud došlo k chybě 451 (regionální blokování)
-                if "451" in str(e) and retries < max_retries:
+                # Pokud jsme dosáhli maximálního počtu po sobě jdoucích chyb,
+                # zkusíme změnit doménu a resetujeme počítadlo
+                if consecutive_errors >= self.max_consecutive_errors:
+                    logger.warning(f"Dosaženo {consecutive_errors} po sobě jdoucích chyb, měním API endpoint")
                     self._try_next_domain()
-                    retries += 1
-                    time.sleep(1)  # Chvíli počkáme před dalším pokusem
-                    continue  # Zkusíme znovu se stejným časovým úsekem
+                    consecutive_errors = 0
                 
-                time.sleep(5)  # Delší pauza při jiných chybách
-                current_start = chunk_end + 1
+                # Pokud jsme překročili maximální počet celkových pokusů, vzdáme to
+                if total_retries >= max_total_retries:
+                    if show_progress:
+                        pbar.close()
+                    logger.error(f"Překročen maximální počet pokusů ({max_total_retries}), ukončuji stahování")
+                    break
+                
+                # Exponenciální backoff pro zpoždění mezi pokusy
+                wait_time = min(self.retry_max_wait, self.retry_min_wait * (2 ** (consecutive_errors - 1)))
+                wait_time = wait_time + random.uniform(0, 1)  # Přidání jitteru
+                
                 if show_progress:
-                    pbar.update(1)
+                    tqdm.write(f"Čekám {wait_time:.2f}s před dalším pokusem...")
+                time.sleep(wait_time)
+                
+                # Pokud došlo k chybě s konkrétním chunkem dat, posuneme se na další
+                if consecutive_errors >= 2:
+                    current_start = chunk_end + 1
+                    if show_progress:
+                        pbar.update(1)
+                    tqdm.write(f"Přeskakuji problematický časový úsek, pokračuji dál")
+                    consecutive_errors = 0
         
         if show_progress:
             pbar.close()
             
         if not all_klines:
-            raise Exception("Nepodařilo se stáhnout žádná data")
+            logger.error("Nepodařilo se stáhnout žádná data")
+            raise Exception("Nepodařilo se stáhnout žádná data po opakovaných pokusech")
             
+        logger.info(f"Úspěšně staženo {len(all_klines)} svíček pro {symbol} {interval}")
         return all_klines
+
+    def _get_klines_with_retry(self, symbol, interval, start_time, end_time, limit=1000, max_retries=3):
+        """
+        Stáhne svíčková data s automatickým opakováním při chybě.
+        
+        Args:
+            symbol (str): Obchodní symbol
+            interval (str): Časový interval
+            start_time (int): Počáteční čas v milisekundách
+            end_time (int): Koncový čas v milisekundách
+            limit (int, optional): Maximální počet svíček
+            max_retries (int): Maximální počet pokusů
+            
+        Returns:
+            list: Seznam svíček
+        """
+        retries = 0
+        used_domains = set()
+        last_exception = None
+        
+        while retries < max_retries and self.base_url not in used_domains:
+            used_domains.add(self.base_url)
+            
+            try:
+                return self._get_klines(symbol, interval, start_time, end_time, limit)
+            except Exception as e:
+                last_exception = e
+                retries += 1
+                logger.warning(f"Pokus {retries}/{max_retries} selhal: {str(e)}")
+                
+                # Přepneme na jinou doménu
+                self._try_next_domain()
+                # Přidání zpoždění před dalším pokusem
+                time.sleep(random.uniform(1, 3))
+        
+        # Pokud jsme vyčerpali všechny pokusy, vyvoláme poslední výjimku
+        if last_exception:
+            raise last_exception
+        else:
+            raise Exception("Nepodařilo se stáhnout data po opakovaných pokusech")
 
     def fetch_intraday_data(self, symbol):
         """
-        Stáhne OHLCV data pro intraday analýzu s přesně specifikovanými timeframy.
+        Stáhne OHLCV data pro intraday analýzu s vylepšenou spolehlivostí.
         
         Args:
             symbol (str): Obchodní symbol (např. 'BTCUSDT')
@@ -171,7 +305,7 @@ class BinanceClient:
         Returns:
             dict: Slovník DataFrame s daty pro intraday timeframy
         """
-        print(f"Stahuji intraday data pro {symbol}...")
+        logger.info(f"Stahuji intraday data pro {symbol}...")
         
         # Definice časových rámců přesně dle zadání uživatele
         timeframes = {
@@ -184,22 +318,28 @@ class BinanceClient:
         
         for interval, days in timeframes.items():
             try:
-                print(f"Stahuji {interval} data za posledních {days} dní...")
+                logger.info(f"Stahuji {interval} data za posledních {days} dní...")
                 klines_data = self.fetch_historical_data(symbol, interval, days)
                 results[interval] = klines_data
-                print(f"Staženo {len(klines_data)} svíček pro {interval}")
+                logger.info(f"Staženo {len(klines_data)} svíček pro {interval}")
                 
-                # Pauza mezi požadavky
-                time.sleep(1)
+                # Pauza mezi požadavky s náhodnou dobou
+                time.sleep(random.uniform(1.5, 3.0))
                 
             except Exception as e:
-                print(f"Chyba při stahování {interval} dat: {str(e)}")
+                logger.error(f"Chyba při stahování {interval} dat: {str(e)}")
+                # Pokračujeme s dalšími timeframy i když jeden selže
         
+        if not results:
+            logger.error("Nepodařilo se stáhnout žádná data pro žádný timeframe")
+            raise Exception("Stahování intraday dat selhalo pro všechny timeframy")
+            
         return results
 
     def fetch_multi_timeframe_data(self, symbol):
         """
-        Stáhne OHLCV data pro timeframy používané ve swing analýze.
+        Stáhne OHLCV data pro timeframy používané ve swing analýze
+        s vylepšenou spolehlivostí.
         
         Args:
             symbol (str): Obchodní symbol (např. 'BTCUSDT')
@@ -207,7 +347,7 @@ class BinanceClient:
         Returns:
             dict: Slovník DataFrame s daty pro různé časové rámce
         """
-        print(f"Stahuji multi-timeframe data pro {symbol}...")
+        logger.info(f"Stahuji multi-timeframe data pro {symbol}...")
         
         # Definice časových rámců přesně dle požadavku
         timeframes = {
@@ -220,22 +360,27 @@ class BinanceClient:
         
         for interval, days in timeframes.items():
             try:
-                print(f"Stahuji {interval} data za posledních {days} dní...")
+                logger.info(f"Stahuji {interval} data za posledních {days} dní...")
                 klines_data = self.fetch_historical_data(symbol, interval, days)
                 results[interval] = klines_data
-                print(f"Staženo {len(klines_data)} svíček pro {interval}")
+                logger.info(f"Staženo {len(klines_data)} svíček pro {interval}")
                 
-                # Pauza mezi požadavky
-                time.sleep(1)
+                # Pauza mezi požadavky s náhodnou dobou
+                time.sleep(random.uniform(1.5, 3.0))
                 
             except Exception as e:
-                print(f"Chyba při stahování {interval} dat: {str(e)}")
+                logger.error(f"Chyba při stahování {interval} dat: {str(e)}")
+                # Pokračujeme s dalšími timeframy i když jeden selže
         
+        if not results:
+            logger.error("Nepodařilo se stáhnout žádná data pro žádný timeframe")
+            raise Exception("Stahování multi-timeframe dat selhalo pro všechny timeframy")
+            
         return results
 
-    def get_klines(self, symbol, interval, start_time, end_time, limit=1000):
+    def _get_klines(self, symbol, interval, start_time, end_time, limit=1000):
         """
-        Stáhne svíčková data pro daný symbol a interval.
+        Stáhne svíčková data pro daný symbol a interval s vylepšeným ošetřením chyb.
         
         Args:
             symbol (str): Obchodní symbol
@@ -260,30 +405,80 @@ class BinanceClient:
                 'limit': limit
             }
             
-            # Přidáme náhodný User-Agent pro snížení šance detekce automatizovaného přístupu
+            # Rotace User-Agent pro snížení šance detekce automatizovaného přístupu
             user_agents = [
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                 "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36",
+                "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:92.0) Gecko/20100101 Firefox/92.0"
             ]
             
+            # Přidání dalších hlaviček, které napodobují běžné prohlížeče
             headers = {
                 'User-Agent': random.choice(user_agents),
-                'Accept': 'application/json',
-                'Accept-Language': 'en-GB,en;q=0.9,ja-JP;q=0.8,ja;q=0.7,en-US;q=0.6',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
                 'Origin': 'https://www.binance.com',
                 'Referer': 'https://www.binance.com/'
             }
 
+            # Explicitně nastavíme timeouty
             response = self.session.get(
                 url,
                 params=params,
                 headers=headers,
                 verify=True,
-                timeout=30
+                timeout=(self.connect_timeout, self.read_timeout)  # (connect timeout, read timeout)
             )
             response.raise_for_status()
             return response.json()
+            
+        except requests.exceptions.ConnectTimeout as e:
+            logger.error(f"Timeout při připojování k {self.base_url}: {str(e)}")
+            raise Exception(f"Timeout při připojování k serveru: {str(e)}")
+            
+        except requests.exceptions.ReadTimeout as e:
+            logger.error(f"Timeout při čtení dat z {self.base_url}: {str(e)}")
+            raise Exception(f"Timeout při čtení dat ze serveru: {str(e)}")
+            
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if hasattr(e, 'response') and e.response is not None else "neznámý"
+            logger.error(f"HTTP chyba {status_code} z {self.base_url}: {str(e)}")
+            
+            # Speciální zpracování chyb podle status kódu
+            if hasattr(e, 'response') and e.response is not None:
+                if e.response.status_code == 429:
+                    # Rate limit překročen
+                    retry_after = e.response.headers.get('Retry-After', 60)
+                    logger.warning(f"Rate limit překročen, čekání {retry_after}s před dalším pokusem")
+                    time.sleep(int(retry_after))
+                elif e.response.status_code in [403, 451]:
+                    # Přístup zakázán nebo regionální blokování - určitě zkusit jinou doménu
+                    logger.warning(f"Přístup blokován (kód {e.response.status_code}), zkusím jinou doménu")
+                    self._try_next_domain()
+            
+            raise Exception(f"HTTP chyba {status_code}: {str(e)}")
+            
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Problém s připojením k {self.base_url}: {str(e)}")
+            raise Exception(f"Problém s připojením: {str(e)}")
+            
+        except socket.error as e:
+            logger.error(f"Socket chyba pro {self.base_url}: {str(e)}")
+            raise Exception(f"Síťová chyba: {str(e)}")
+            
+        except (ValueError, KeyError) as e:
+            logger.error(f"Chyba při zpracování odpovědi z {self.base_url}: {str(e)}")
+            raise Exception(f"Chyba při zpracování odpovědi: {str(e)}")
+            
         except Exception as e:
-            raise Exception(f"Chyba při stahování dat: {str(e)}")
+            logger.error(f"Neočekávaná chyba při komunikaci s {self.base_url}: {str(e)}")
+            raise Exception(f"Neočekávaná chyba: {str(e)}")
